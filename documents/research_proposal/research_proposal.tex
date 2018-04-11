@@ -4,6 +4,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage{cite}
 \usepackage{float}
 
 \setCJKmainfont[BoldFont=SourceHanSerifSC-Bold]{SourceHanSerifSC-Regular}
@@ -252,9 +253,81 @@ Windows系统中主要选择了使用度量标准（metric）技术来评估网�
 用于标识与使用该路由相关的成本。例如，可以根据链路速度，跳数或时间延迟来评估度量。
 自动度量标准是Windows中的一项新功能，
 可自动配置基于链接速度的本地路由的度量标准。“自动度量标准”功能默认情况下处于启用状态，还可以手动配置它以分配特定的度量标准。
+\\
 当路由表包含相同目的地的多个路由时，自动度量标准功能可能很有用。例如，如果计算机具有10Mbps网络接口和100Mbps网络接口，
 并且计算机具有在两个网络接口上均配置的默认网关，则自动度量标准功能会将较高的度量标准分配给较慢的网络接口。
 例如，此功能可以强制发往互联网的所有流量使用可用的最快网络接口。
+\begin{table}[H]
+    \begin{center}
+    \begin{tabular}{cc}
+        \toprule
+        链接速度 & Metric\\
+        \midrule
+        大于或等于2 GB & 5  \\
+        大于200 Mb & 10  \\
+        大于20 Mb，小于或等于200 Mb & 20 \\
+        大于4 Mb，小于或等于20 Mb & 30 \\
+        大于500 Kb，小于或等于4 Mb & 40 \\
+        小于或等于500 Kb & 50 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Windows绑定各种速度的网络接口的路由的分配度量标准}
+    \end{center}
+\end{table}
+
+\begin{table}[H]
+    \begin{center}
+    \begin{tabular}{cc}
+        \toprule
+        链接速度 & Metric\\
+        \midrule
+        大于或等于2 GB & 5  \\
+        大于200 Mb & 10  \\
+        大于80 Mb，小于或等于200 Mb & 20 \\
+        大于20 Mb，小于或等于80 Mb & 25 \\
+        大于4 Mb，小于或等于20 Mb & 30 \\
+        大于500 Kb，小于或等于4 Mb & 40\\
+        小于或等于500 Kb & 50\\
+        \bottomrule
+    \end{tabular}
+    \caption{Windows XP SP2中链接速度和相应的Metric}
+    \end{center}
+\end{table}
+\begin{table}[H]
+    \begin{center}
+    \begin{tabular}{cc}
+        \toprule
+        链接速度 & Metric\\
+        \midrule
+        大于或等于2 GB & 25  \\
+        大于或等于500 Mb且小于2 Gb & 30  \\
+        大于或等于200 Mb且小于500 Mb & 35 \\
+        大于或等于150 Mb且小于200 Mb & 40 \\
+        大于或等于80 Mb且小于150 Mb & 45 \\
+        大于或等于50 Mb且小于80 Mb & 50\\
+        大于或等于20 Mb且小于50 Mb & 55\\
+        大于或等于10 Mb且小于20 Mb & 60\\
+        大于或等于4 Mb且小于10 Mb & 65\\
+        大于或等于2 Mb且小于4 Mb & 70\\
+        大于或等于500 Kb并小于2 Mb & 75\\
+        大于或等于200 Kb并小于500 Kb & 80\\
+        小于200 Kb & 85\\
+        \bottomrule
+    \end{tabular}
+    \caption{Windows 10中链接速度和相应的Metric}
+    \end{center}
+\end{table}
+
+自动度量标准功能是针对网络中的每个网络接口单独配置的。
+如果有多个网络接口具有相同的速度，例如每个网络接口都分配了默认网关，
+则此功能非常有用。在这种情况下，用户可能需要在一个网络接口上手动配置度量标准，
+并启用自动度量标准功能来配置其他网络接口的度量标准。此设置可以使用户能够控制IP流量路由中首先使用的网络接口。
+\\
+另外，可以为每个网关独立配置分配给特定默认网关的度量标准。此设置可以进一步控制用于本地路由的度量标准。
+例如，可以启用自动度量标准功能来配置分配给网络接口的路由，同时手动配置分配给默认网关的度量标准。
+\\
+“自动度量标准”功能不同于“失效网关检测”功能，可以强制网络切换基于传输控制协议（TCP）重新传输的默认网关。
+此外，路由和远程访问功能不会激活死网关检测功能。该激活由启动TCP会话的计算机上的TCP / IP堆栈执行。
 \subsection{网卡桥接}
 现在为了提高网络吞吐量常有的做法是将两张网卡桥接，
 然后通过路由表分配每条链路上的负载,
@@ -263,6 +336,16 @@ Windows系统中主要选择了使用度量标准（metric）技术来评估网�
 然而如果是单个网络服务，比如传送一个视频，其仍然需要分片后手动设置传输的路径，
 如果一条数据链路上出错或者连接断开，传输就会出错，而且当一条线路网络条件较差时，
 往往会成为传输过程的瓶颈，操作系统并不会为其转换线路后再回到原线路拼接。
+\subsection{多路TCP}
+多路TCP的实现为同时连接多个网络，
+由于以太网速度高于Wi-FI，Wi-Fi高于3G，
+于是多路连接服务器，优先以以太网传输，如果以太网与服务器断开，
+则检测到Wi-Fi与服务器仍连接，此时将数据转移到Wi-Fi上，而防止连接的断开，
+然后再将Wi-Fi断开时，由3G继续传输，由于在实际的网络使用环境下，下载与浏览网页通过一条链路传输就够了，
+这项技术最大的意义在于增加连接的可靠性，但是并没有增加吞吐量。
+\\
+所以我们准备做一个多路传输的实现，既能有网桥的负载分配和网速叠加，
+又要有多路TCP多个流之间切换保证流量的稳定性，不让低速质量差的链路影响传输效率。
 \section{重要性、前瞻性分析}
 \textbf{使用多路传输文件可以大大增加传输的可靠性}\\
 在许多单链路文件传输软件中，经常会有由于链路断开导致文件发送失败的情况，
@@ -281,5 +364,56 @@ Windows系统中主要选择了使用度量标准（metric）技术来评估网�
 丢包可能性也很大，但功耗低，所以在连接状况好时主要通过蓝牙传输，然后在多次丢包或出错后将包交给无线来传输。
 \section{相关工作和前沿进展}
 \subsection{多路TCP}
-\textbf{TODO}
+\subsubsection{简介}
+多路TCP(MPTCP) 旨在构建出多路TCP传输通道，
+从而最大化资源利用并减少冗余和阻塞。通过资源逆向复用，可以大大提高TCP吞吐率，
+并且是向后兼容的。在无线网络环境下作用尤其明显，一个典型例子是手机同时连接Wi-Fi和移动网络，
+为了提高吞吐率，在不断开TCP连接的情况下，根据用户的网络情况，链路可以被随时添加或移除。
+\\
+多路TCP采用与TCP相同的套接字接口，从而使其在任何基于TCP的应用上运行。以下为其具体应用：
+\begin{itemize}
+    \item Linux kernel (reference implementation) from Université catholique de Louvain
+    \item FreeBSD (IPv4 only) from Swinburne University of Technology
+    \item F5 Networks BIG-IP LTM
+    \item Citrix Netscaler
+    \item Apple iOS 7 \footnote{于2013年9月18日发布， 是第一个多路TCP的大规模商业应用。 从iOS 7开始，任何应用都可以使用多路TCP}
+    \item Apple macOS 10.10 \footnote{于2014年10月16日发布}
+\end{itemize}
+虽然多路TCP能够支持任何现有的支持TCP的应用，
+但是其多路并发传输效率仍然受到一些具体因素制约。
+苹果在iPhone上的Siri上使用多路TCP通过HTTPS会话发送声音样本到服务器，服务器再做出相应的回应。
+多路TCP技术最核心的优势在于：
+\begin{enumerate}
+\item 95\%的用户反馈速度提高20\%
+\item 网络错误率降低5倍
+\end{enumerate}
+\subsubsection{性能}
+\begin{figure}[H]
+    \begin{center}
+    \includegraphics[width=\textwidth]{figures//multitcp_performance.jpg}
+    \caption{3G与Wi-Fi混用时的性能}
+    \end{center}
+\end{figure}
+\subsubsection{iOS 11下的MPTCP}
+\paragraph{Handover Mode (高可靠模式)}
+这种模式下优先考虑的是链接的可靠性。只有在Wi-Fi信号不好的时候，流量才会走Cellular。如果Wi-Fi信号好，但是Wi-Fi很慢，这时候也不会切到Cellular链路。
+\paragraph{Interactive Mode（低延时模式)}
+这种模式下优先考虑的是链接的低延时。系统会看Wi-Fi快还是Cellular快。如果Cellular比Wi-Fi快，哪怕此时Wi-Fi信号很好，系统也会把流量切到Cellular链路。
+这个可以提供更低的延迟的多路连接，这种模式在未来的beta版会支持，但是目前并没有能用的实现。
+\paragraph{Aggregation Mode (混合模式)}
+在这种模式下，Wi-Fi和Cellular会同时起作用。如果Wi-Fi是1G带宽，Cellular也是1G带宽，那么你的设备就能享受2G带宽。
+\\[2pt]
+这个就是我们想要实现的，但不是在Wi-Fi和Cellular下，因为流量价格较高，且在40G后运营商会自动降速（
+而且在不降速情况下中国大部分地区网速都不高）。所以就算苹果实现了一个iOS版本的混合模式传输，也不会有应用实际去使用，实用性很低，但如果是Wi-Fi和Ethernet的混合传输，我相信更多的应用开发者会去使用
+\subsection{总结}
+目前有许多Multipath Transport方面的研究，
+但是并没有许多的应用去支持，我认为有许多原因，
+但与计算机网络课程教师讨论后，认为最主要原因是应用场景不多，
+在实际的大规模的网络环境中这个用处没有，在局域网环境中许多情况下Wi-Fi就够用，
+尤其是在对网速要求稍高的工作环境中，目前许多802.11ac的设备已经能够达到很高的宽带容量，不需要使用这个来提高吞吐量，
+所以我认为这项技术应该更大的意义在于提高网络可靠性 ，在网络不稳定的情况下，通过双链路来保证数据传输的不停止，
+以方便在一条链路断开后冲连传输速度的迅速恢复。
+\nocite{*}
+\bibliographystyle{plain}
+\bibliography{ref}
 \end{document}
