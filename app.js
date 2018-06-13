@@ -15,21 +15,10 @@ app.get('/*', function (req, res, next) {
 	
 });
 
-sockets = [];
-require("./server.js");
-
-
-core.id_sendstate = setInterval(function () {
-	if (core.active)
-		io.send(); //TODO
-}, core.tickrate);
-
 
 io.on("connection", function (socket) {
 
 	socket.on('join', function (status) {
-		sockets[status.id] = socket;
-		socket.client_id = status.id;
 		
 	});
 	
