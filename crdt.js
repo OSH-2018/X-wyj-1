@@ -75,6 +75,9 @@ var char = (identifiers, lamport, value) => {
 	};
 };
 
+var startOfFile = char({digit:1,site:0}, 0, '^');
+var endOfFile = char({digit:255,site:0}, 0, '$');
+
 var compareIdentifier = (i1, i2) => {
 	if (i1.digit < i2.digit) {
 		return -1;
@@ -91,6 +94,16 @@ var compareIdentifier = (i1, i2) => {
 	}
 };
 
+var equalChar = (c1, c2) => {
+    if (c1.position.length !== c2.position.length) return false;
+    if (c1.lamport !== c2.lamport) return false;
+    if (c1.value !== c2.value) return false;
+    for (let i = 0; i < c1.position.length; i++) {
+        if (compareIdentifier(c1.position[i], c2.position[i]) !== 0) return false;
+    }
+    return true;
+};
+
 var comparePosition = (p1, p2) => {
 	for (var i = 0; i < Math.min(p1.length, p2.length); i++) {
 		var comp = compareIdentifier(p1[i], p2[i]);
@@ -105,6 +118,10 @@ var comparePosition = (p1, p2) => {
 		return 0;
 	}
 };
+
+var compareChar = (c1, c2) => {
+	return comparePosition(c1.position, c2.position);
+}
 
 var generatePositionBetween = (p1, p2, site) => {
 	var head1 = p1[0] || identifier(0, site);
@@ -127,12 +144,221 @@ var generatePositionBetween = (p1, p2, site) => {
 	}
 };
 
+var binarySearch = (U, V, comparator, notFoundBehavior) => {
 
-var CRDT = () => {
-
-}
-
-CRDT.prototype.applyChange = (change) => {
-
+    var _binarySearch = (start, end) => {
+        if (start >= end) {
+            switch (notFoundBehavior) {
+                case "at":
+                    return start;
+                case "before":
+                    return start - 1;
+                 default:
+                 	return start;
+            }
+        } else {
+            const mid = Math.floor((start + end) / 2);
+            const comp = comparator(V, U[mid]);
+            if (comp < 0) {
+                return _binarySearch(start, mid);
+            } else if (comp > 0) {
+                return _binarySearch(mid + 1, end);
+            } else {
+                return mid;
+            }
+        }
+    }
+    return _binarySearch(0, U.length);
 };
 
+
+var CRDT = () => {
+	this.crdt = [[]];
+}
+
+//deep copy
+CRDT.prototype.getChar = (lineIndex, charIndex) => {
+	const c = this.crdt[lineIndex][charIndex];
+	return char(c.position.map(i => {digit : i.digit, site : i.site}), c.lamport, c.value);
+};
+
+//deep copy
+CRDT.prototype.getLine = (lineIndex) => {
+	return this.crdt[lineIndex].map((char, charIndex) => this.getChar(lineIndex, charIndex));
+};
+
+CRDT.prototype.compareCharWithLine = (char, line) => {
+	if (line.length === 0)
+		return -1;
+	else {
+		return compareChar(char, line[0]);
+	}
+};
+
+CRDT.prototype.findPosition = (char) => {
+	const lineIndex = Math.max(0, binarySearch(this.crdt, char, compareCharWithLine, "before"));
+	const line = this.getLine(lineIndex);
+	const charIndex = binarySearch(line, char, compareChar, "at");
+	if (charIndex < line.length) {
+        var found = compareChar(crdt[lineIndex][charIndex], char) === 0;
+        return [lineIndex, charIndex, found ? "found" : "not_found"];
+    } else {
+        const isAfterNewline = (charIndex === line.length) && (lineIndex !== crdt.length - 1);
+        // All lines except the last one need to end in a newline, so put this character
+        // on the next line if it would go at the end of the line.
+        if (isAfterNewline) {
+            return [lineIndex + 1, 0, "not_found"];
+        } else {
+            return [lineIndex, charIndex, "not_found"];
+        }
+    }
+};
+
+CRDT.prototype.getPreChar = (lineIndex, charIndex) => {
+	if (charIndex === 0) {
+        if (lineIndex === 0) {
+            return startOfFile;
+        } else {
+            return this.getChar(lineIndex - 1, this.crdt[lineIndex - 1].length - 1);
+        }
+    } else {
+        return this.getChar(lineIndex, charIndex - 1);
+    }
+};
+
+CRDT.prototype.updateCrdtRemove = (crdt, change) => {
+    const lines = this.crdt.slice(change.from.line, change.to.line + 1);
+    const linesAndUpdates = lines.map((line, index) => {
+        const startIndex;
+        const endIndex;
+        if (index === 0) {
+            startIndex = change.from.ch;
+        } else {
+            startIndex = 0;
+        }
+        if (index === lines.length - 1) {
+            endIndex = change.to.ch;
+        } else {
+            endIndex = line.length;
+        }
+        var toRemove = line.slice(startIndex, endIndex);
+        if (toRemove.length !== endIndex - startIndex) {
+            alert("size does not match");
+        }
+        line.splice(startIndex, endIndex - startIndex);
+        return [line, toRemove];
+    });
+    const updatedLines = linesAndUpdates.map(tuple => tuple[0]);
+    const _toRemove = linesAndUpdates.map(tuple => tuple[1]);
+    const toRemove = [];
+    _toRemove.forEach(array => toRemove = toRemove.concat(array));
+
+    // Only the first and last line should be non-empty, so we just keep those.
+    if (lines.length === 1) {
+		this.crdt[change.from.line] = updatedLines[0];
+    } else {
+        const remainingLine = updatedLines[0].concat(updatedLines[updatedLines.length-1]);
+        this.crdt.splice(change.from.line, lines.length, remainingLine);
+    }
+    return toRemove;
+}
+
+CRDT.prototype.updateCrdtInsert = (lamport, site, change) => {
+	const lineIndex = change.from.line;
+    const ch = change.from.ch;
+    const line = crdt[lineIndex];
+    const before = line.slice(0, ch);
+    const after = line.slice(ch, line.length);
+
+    let previousChar = this.getPreChar(lineIndex, ch);
+    const nextChar = this.getChar(lineIndex, ch);
+    let currentLine = before;
+    const lines = [];
+    const addedChars = [];
+    change.text.forEach(addedChar => {
+        const newPosition = generatePositionBetween(
+            previousChar.position, nextChar.position, site);
+        const newChar = char(newPosition, lamport, addedChar);
+        currentLine = currentLine.push(newChar);
+        if (addedChar === "\n") {
+            lines.push(currentLine);
+            currentLine = []
+        }
+
+        addedChars.push(newChar);
+        previousChar = newChar;
+    });
+
+    currentLine = currentLine.concat(after);
+    lines.push(currentLine);
+
+    this.crdt.splice(lineIndex, 1, ...lines);
+    return addedChars;
+}
+
+CRDT.prototype.remoteInsert = (char) => {
+    const [lineIndex, ch, found] = this.findPosition(char);
+        const line = this.getLine(lineIndex);
+        if (found === "not_found") {
+            const change = {
+                from : {line : lineIndex, ch}, 
+                to : {line: lineIndex, ch}, 
+                text : char.value
+            };
+            if (char.value === "\n") {
+                const before = line.slice(0, ch);
+    			const after = line.slice(ch, line.length);
+                this.crdt.splice(lineIndex, 1, ...[before.push(char), after]);
+                return change;
+            } else {
+                this.crdt[lineIndex].splice(ch, 0, char);
+                return change;
+            }
+        } else {
+            // Probably means we got a duplicate for some reason
+            alert('Remote insertion encounters duplication');
+            return null;
+        }
+};
+
+CRDT.prototype.remoteDelete = (char) => {
+        const [lineIndex, ch, found] = this.findPosition(char);
+        let line = this.getLine(lineIndex);
+        if (found === "found" && equalChar(line[ch], char)) {
+            line.splice(ch, 1);
+            const nextLine = this.getLine(lineIndex + 1);
+
+            if (line.findIndex(char => char.value === "\n") < 0 && nextLine) {
+                // Newline character was removed, need to join with the next line
+                const change = {
+                    from : {line: lineIndex, ch}, 
+                    to : {line: lineIndex + 1, ch: 0}, 
+                    text : ""
+                };
+                this.crdt.splice(lineIndex, 2, line.concat(nextLine));
+                return change;
+            } else {
+                const change = {
+                    from : {line: lineIndex, ch},
+                    to : {line: lineIndex, ch: ch + 1}, 
+                    text : ""
+                };
+                this.crdt[lineIndex] = line;
+                return change;
+            }
+        } else {
+            alert('Remote deletion encounters duplication');
+            return null;
+        }
+};
+/*
+CRDT.prototype.localInsert = (lamport, site, change) => {
+        const remoteChanges = this.updateCrdtInsert(lamport, site, change);
+        return remoteChanges;
+};
+
+    public localDelete(change: LocalChange): Char.t[] {
+        const remoteChanges = updateCrdtRemove(change);
+        return remoteChanges;
+    }
+*/
