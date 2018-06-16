@@ -233,7 +233,7 @@ C.getPreChar = (lineIndex, charIndex) => {
     }
 };
 
-C.updateCrdtRemove = (crdt, change) => {
+C.updateCrdtRemove = (change) => {
     const lines = C.crdt.slice(change.from.line, change.to.line + 1);
     const linesAndUpdates = lines.map((line, index) => {
         let startIndex;
@@ -257,7 +257,7 @@ C.updateCrdtRemove = (crdt, change) => {
     });
     const updatedLines = linesAndUpdates.map(tuple => tuple[0]);
     const _toRemove = linesAndUpdates.map(tuple => tuple[1]);
-    const toRemove = [];
+    let toRemove = [];
     _toRemove.forEach(array => {toRemove = toRemove.concat(array)});
 
     // Only the first and last line should be non-empty, so we just keep those.

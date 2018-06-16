@@ -22,7 +22,6 @@ socket.on('accept', (site) => {
 socket.on('users', (users) => {
 	users = JSON.parse(users);
 	head.innerHTML = "";
-	console.log(users);
 	users.forEach((role, site)=> {
 		if (role !== null) {
 			var u = document.createElement("h1");
@@ -43,6 +42,7 @@ socket.on('init', (changes) => {
 });
 
 socket.on('recvChange', (remoteChange) => {
+	console.log(remoteChange);
 	global_lamport = Math.max(remoteChange.lamport, global_lamport) + 1;
 	const localChange = C.updateAndConvertRemoteToLocal(remoteChange.change);
 	if (localChange) {
