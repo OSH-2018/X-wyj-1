@@ -325,7 +325,6 @@ C.remoteInsert = (char) => {
             }
         } else {
             // Probably means we got a duplicate for some reason
-            alert('Remote insertion encounters duplication');
             return null;
         }
 };
@@ -356,7 +355,6 @@ C.remoteDelete = (char) => {
                 return change;
             }
         } else {
-            alert('Remote deletion encounters duplication');
             return null;
         }
 };
@@ -415,6 +413,8 @@ C.updateAndConvertRemoteToLocal = (change) => {
 return C;
 };
 
-if ('undefined' != typeof global)
+if ('undefined' != typeof global) {
+    var alert = ()=>{};
     module.exports = CRDT;
+}
 
