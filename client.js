@@ -4,6 +4,7 @@ var global_site;
 var global_role;
 var C = CRDT();
 var head = document.getElementById("head");
+var container = document.getElementById("container");
 
 var editor = CodeMirror.fromTextArea(document.getElementById("wyj"), {
     lineNumbers: true,     // 显示行号
@@ -56,5 +57,7 @@ editor.on('change', (self, change) => {
 	global_lamport = global_lamport + 1;
     const changes = C.updateAndConvertLocalToRemote(global_lamport, global_site, change);
     changes.forEach(change => socket.emit('sendChange',{change : change, lamport : global_lamport}));
+    container.innerHTML = editor.getValue();
+    $(".latex").latex();
 });
 

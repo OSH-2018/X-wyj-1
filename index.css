@@ -10,9 +10,24 @@ body {
 }
 header {
 	margin: 10px 0px 10px;
+	width:100%;
 }
+
 h1 {
 	display : inline;
 	font-size : 26px;
 	margin: 0px 20px;
+}
+
+.right {
+	position:absolute;
+	width:49%;
+	height:100%;
+	right:0;
+	top:50px;
+	background:#fff;
+}
+
+#container {
+	padding:20px;
 }
