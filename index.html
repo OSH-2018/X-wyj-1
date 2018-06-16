@@ -10,17 +10,11 @@
 </head>
 
 <body>
+    <header id="head">
+    </header>
 <textarea id="wyj"></textarea>
-<script>
-	var editor = CodeMirror.fromTextArea(document.getElementById("wyj"), {
-    lineNumbers: true,     // 显示行号
-        indentUnit: 4,         // 缩进单位为4
-        styleActiveLine: true, // 当前行背景高亮
-        matchBrackets: true,   // 括号匹配
-        lineWrapping: true,    // 自动换行
-        theme: 'dracula',      // 编辑器主题
-});
-</script>
+
+<script src="crdt.js"></script>
 <script src="client.js"></script>
 </body>
 </html>

@@ -1,12 +1,16 @@
-var BASE = 256;
+var CRDT = () => {
+    var C = {};
+    C.crdt = [[]];
+    C.BASE = 256;
 
-var add = (n1, n2) => {
+
+C.add = (n1, n2) => {
 	var carry = 0;
     var diff = new Array();
     for (var i = Math.max(n1.length, n2.length) - 1; i >= 0; i--) {
         var sum = (n1[i] || 0) + (n2[i] || 0) + carry;
-        carry = Math.floor(sum / BASE);
-        diff[i] = (sum % BASE);
+        carry = Math.floor(sum / C.BASE);
+        diff[i] = (sum % C.BASE);
     }
     if (carry !== 0) {
     	console.log('Something wrong');
@@ -14,7 +18,7 @@ var add = (n1, n2) => {
     return diff;
 };
 
-var subtract = (n1,n2) => {
+C.subtract = (n1,n2) => {
 	var carry = 0;
     var diff = new Array();
     for (let i = Math.max(n1.length, n2.length) - 1; i >= 0; i--) {
@@ -22,7 +26,7 @@ var subtract = (n1,n2) => {
         var d2 = (n2[i] || 0);
         if (d1 < d2) {
             carry = 1;
-            diff[i] = d1 + BASE - d2;
+            diff[i] = d1 + C.BASE - d2;
         } else {
             carry = 0;
             diff[i] = d1 - d2;
@@ -31,43 +35,43 @@ var subtract = (n1,n2) => {
     return diff;
 };
 
-var fromIdentifiers = (identifiers) => {
+C.fromIdentifiers = (identifiers) => {
 	return identifiers.map(id => id.digit);
 };
 
-var toIdentifiers = (num, before, after, site) => {
+C.toIdentifiers = (num, before, after, site) => {
 	return num.map((digit, index) => {
 		if (index === num.length - 1) {
-			return identifier(digit, site);
+			return C.identifier(digit, site);
 		}
 		else if (index < before.length && digit === before[index].digit) {
-			return identifier(digit, before[index].site);
+			return C.identifier(digit, before[index].site);
 		}
 		else if (index < after.length && digit === after[index].digit) {
-			return identifier(digit, after[index].site);
+			return C.identifier(digit, after[index].site);
 		}
 		else {
-			return identifier(digit, site);
+			return C.identifier(digit, site);
 		}
 	});
 };
 
-var increment = (num, delta) => {
+C.increment = (num, delta) => {
 	var firstNonzero = delta.findIndex(x => x !== 0);
 	var inc = delta.slice(0, firstNonzero).concat([0, 1]);
-	var v1 = add(n1, inc);
-	var v2 = v1[v1.length - 1] === 0 ? add(v1, inc) : v1;
+	var v1 = C.add(num, inc);
+	var v2 = v1[v1.length - 1] === 0 ? C.add(v1, inc) : v1;
 	return v2;
 };
 
-var identifier = (digit, site) => {
+C.identifier = (digit, site) => {
 	return {
 		digit : digit || 0,
 		site : site || 0
 	};
 };
 
-var char = (identifiers, lamport, value) => {
+C.char = (identifiers, lamport, value) => {
 	return {
 		position : identifiers || [],
 		lamport : lamport || 0,
@@ -75,10 +79,10 @@ var char = (identifiers, lamport, value) => {
 	};
 };
 
-var startOfFile = char({digit:1,site:0}, 0, '^');
-var endOfFile = char({digit:255,site:0}, 0, '$');
+C.startOfFile = C.char([{digit:1,site:-1}], 0, '^');
+C.endOfFile = C.char([{digit:255,site:1000}], 0, '$');
 
-var compareIdentifier = (i1, i2) => {
+C.compareIdentifier = (i1, i2) => {
 	if (i1.digit < i2.digit) {
 		return -1;
 	} else if (i1.digit > i2.digit) {
@@ -94,19 +98,19 @@ var compareIdentifier = (i1, i2) => {
 	}
 };
 
-var equalChar = (c1, c2) => {
+C.equalChar = (c1, c2) => {
     if (c1.position.length !== c2.position.length) return false;
     if (c1.lamport !== c2.lamport) return false;
     if (c1.value !== c2.value) return false;
     for (let i = 0; i < c1.position.length; i++) {
-        if (compareIdentifier(c1.position[i], c2.position[i]) !== 0) return false;
+        if (C.compareIdentifier(c1.position[i], c2.position[i]) !== 0) return false;
     }
     return true;
 };
 
-var comparePosition = (p1, p2) => {
+C.comparePosition = (p1, p2) => {
 	for (var i = 0; i < Math.min(p1.length, p2.length); i++) {
-		var comp = compareIdentifier(p1[i], p2[i]);
+		var comp = C.compareIdentifier(p1[i], p2[i]);
 		if (comp !== 0)
 			return comp;
 	}
@@ -119,32 +123,35 @@ var comparePosition = (p1, p2) => {
 	}
 };
 
-var compareChar = (c1, c2) => {
-	return comparePosition(c1.position, c2.position);
-}
+C.compareChar = (c1, c2) => {
+	return C.comparePosition(c1.position, c2.position);
+};
 
-var generatePositionBetween = (p1, p2, site) => {
-	var head1 = p1[0] || identifier(0, site);
-	var head2 = p2[0] || identifier(BASE, site);
+C.generatePositionBetween = (p1, p2, site) => {
+	var head1 = p1[0] || C.identifier(0, site);
+	var head2 = p2[0] || C.identifier(C.BASE, site);
 	if (head1.digit !== head2.digit) {
-		var n1 = fromIdentifiers(p1);
-		var n2 = fromIdentifiers(p2);
-		var delta = subtract(n2, n1);
-		var next = increment(n1, delta);
-		return toIdentifiers(next, p1, p2, site);
+		var n1 = C.fromIdentifiers(p1);
+		var n2 = C.fromIdentifiers(p2);
+		var delta = C.subtract(n2, n1);
+		var next = C.increment(n1, delta);
+		return C.toIdentifiers(next, p1, p2, site);
 	} else {
 		if (head1.site < head2.site) {
-			return [head1].concat(generatePositionBetween(p1.splice(0,1), [], site));
+            p1.splice(0,1);
+			return [head1].concat(C.generatePositionBetween(p1, [], site));
 		}
 		else if (head1.site === head2.site) {
-			return [head1].concat(generatePositionBetween(p1.splice(0,1), p2.splice(0,1), site));
+            p1.splice(0,1);
+            p2.splice(0,1);
+			return [head1].concat(C.generatePositionBetween(p1, p2, site));
 		} else {
 			console.log('Invalid site ordering');
 		}
 	}
 };
 
-var binarySearch = (U, V, comparator, notFoundBehavior) => {
+C.binarySearch = (U, V, comparator, notFoundBehavior) => {
 
     var _binarySearch = (start, end) => {
         if (start >= end) {
@@ -172,39 +179,39 @@ var binarySearch = (U, V, comparator, notFoundBehavior) => {
 };
 
 
-var CRDT = () => {
-	this.crdt = [[]];
-}
-
 //deep copy
-CRDT.prototype.getChar = (lineIndex, charIndex) => {
-	const c = this.crdt[lineIndex][charIndex];
-	return char(c.position.map(i => {digit : i.digit, site : i.site}), c.lamport, c.value);
+C.getChar = (lineIndex, charIndex) => {
+    const l = C.crdt[lineIndex];
+    if (!l) return C.endOfFile;
+	const c = C.crdt[lineIndex][charIndex];
+    if (!c) return C.endOfFile;
+	return C.char(c.position.map(i => {return {digit : i.digit, site : i.site}}), c.lamport, c.value);
 };
 
 //deep copy
-CRDT.prototype.getLine = (lineIndex) => {
-	return this.crdt[lineIndex].map((char, charIndex) => this.getChar(lineIndex, charIndex));
+C.getLine = (lineIndex) => {
+    if (!C.crdt[lineIndex]) return [];
+	return C.crdt[lineIndex].map((char, charIndex) => C.getChar(lineIndex, charIndex));
 };
 
-CRDT.prototype.compareCharWithLine = (char, line) => {
+C.compareCharWithLine = (char, line) => {
 	if (line.length === 0)
 		return -1;
 	else {
-		return compareChar(char, line[0]);
+		return C.compareChar(char, line[0]);
 	}
 };
 
-CRDT.prototype.findPosition = (char) => {
-	const lineIndex = Math.max(0, binarySearch(this.crdt, char, compareCharWithLine, "before"));
-	const line = this.getLine(lineIndex);
-	const charIndex = binarySearch(line, char, compareChar, "at");
+C.findPosition = (char) => {
+	const lineIndex = Math.max(0, C.binarySearch(C.crdt, char, C.compareCharWithLine, "before"));
+	const line = C.getLine(lineIndex);
+	const charIndex = C.binarySearch(line, char, C.compareChar, "at");
 	if (charIndex < line.length) {
-        var found = compareChar(crdt[lineIndex][charIndex], char) === 0;
+        var found = C.compareChar(C.crdt[lineIndex][charIndex], char) === 0;
         return [lineIndex, charIndex, found ? "found" : "not_found"];
     } else {
-        const isAfterNewline = (charIndex === line.length) && (lineIndex !== crdt.length - 1);
-        // All lines except the last one need to end in a newline, so put this character
+        const isAfterNewline = (charIndex === line.length) && (lineIndex !== C.crdt.length - 1);
+        // All lines except the last one need to end in a newline, so put C character
         // on the next line if it would go at the end of the line.
         if (isAfterNewline) {
             return [lineIndex + 1, 0, "not_found"];
@@ -214,23 +221,23 @@ CRDT.prototype.findPosition = (char) => {
     }
 };
 
-CRDT.prototype.getPreChar = (lineIndex, charIndex) => {
+C.getPreChar = (lineIndex, charIndex) => {
 	if (charIndex === 0) {
         if (lineIndex === 0) {
-            return startOfFile;
+            return C.startOfFile;
         } else {
-            return this.getChar(lineIndex - 1, this.crdt[lineIndex - 1].length - 1);
+            return C.getChar(lineIndex - 1, C.crdt[lineIndex - 1].length - 1);
         }
     } else {
-        return this.getChar(lineIndex, charIndex - 1);
+        return C.getChar(lineIndex, charIndex - 1);
     }
 };
 
-CRDT.prototype.updateCrdtRemove = (crdt, change) => {
-    const lines = this.crdt.slice(change.from.line, change.to.line + 1);
+C.updateCrdtRemove = (crdt, change) => {
+    const lines = C.crdt.slice(change.from.line, change.to.line + 1);
     const linesAndUpdates = lines.map((line, index) => {
-        const startIndex;
-        const endIndex;
+        let startIndex;
+        let endIndex;
         if (index === 0) {
             startIndex = change.from.ch;
         } else {
@@ -251,54 +258,55 @@ CRDT.prototype.updateCrdtRemove = (crdt, change) => {
     const updatedLines = linesAndUpdates.map(tuple => tuple[0]);
     const _toRemove = linesAndUpdates.map(tuple => tuple[1]);
     const toRemove = [];
-    _toRemove.forEach(array => toRemove = toRemove.concat(array));
+    _toRemove.forEach(array => {toRemove = toRemove.concat(array)});
 
     // Only the first and last line should be non-empty, so we just keep those.
     if (lines.length === 1) {
-		this.crdt[change.from.line] = updatedLines[0];
+		C.crdt[change.from.line] = updatedLines[0];
     } else {
         const remainingLine = updatedLines[0].concat(updatedLines[updatedLines.length-1]);
-        this.crdt.splice(change.from.line, lines.length, remainingLine);
+        C.crdt.splice(change.from.line, lines.length, remainingLine);
     }
     return toRemove;
 }
 
-CRDT.prototype.updateCrdtInsert = (lamport, site, change) => {
+C.updateCrdtInsert = (lamport, site, change) => {
 	const lineIndex = change.from.line;
     const ch = change.from.ch;
-    const line = crdt[lineIndex];
-    const before = line.slice(0, ch);
+    const line = C.getLine(lineIndex);
+    let before = line.slice(0, ch);
     const after = line.slice(ch, line.length);
 
-    let previousChar = this.getPreChar(lineIndex, ch);
-    const nextChar = this.getChar(lineIndex, ch);
-    let currentLine = before;
+    let previousChar = C.getPreChar(lineIndex, ch);
+    const nextChar = C.getChar(lineIndex, ch);
     const lines = [];
     const addedChars = [];
-    change.text.forEach(addedChar => {
-        const newPosition = generatePositionBetween(
+    let addedChar;
+    for (let textIndex in change.text) {
+        addedChar = change.text[textIndex];
+        const newPosition = C.generatePositionBetween(
             previousChar.position, nextChar.position, site);
-        const newChar = char(newPosition, lamport, addedChar);
-        currentLine = currentLine.push(newChar);
+        const newChar = C.char(newPosition, lamport, addedChar);
+        before.push(newChar);
         if (addedChar === "\n") {
-            lines.push(currentLine);
-            currentLine = []
+            lines.push(before);
+            before = [];
         }
 
         addedChars.push(newChar);
         previousChar = newChar;
-    });
+    }
 
-    currentLine = currentLine.concat(after);
+    const currentLine = before.concat(after);
     lines.push(currentLine);
 
-    this.crdt.splice(lineIndex, 1, ...lines);
+    C.crdt.splice(lineIndex, 1, ...lines);
     return addedChars;
 }
 
-CRDT.prototype.remoteInsert = (char) => {
-    const [lineIndex, ch, found] = this.findPosition(char);
-        const line = this.getLine(lineIndex);
+C.remoteInsert = (char) => {
+    const [lineIndex, ch, found] = C.findPosition(char);
+        const line = C.getLine(lineIndex);
         if (found === "not_found") {
             const change = {
                 from : {line : lineIndex, ch}, 
@@ -308,10 +316,11 @@ CRDT.prototype.remoteInsert = (char) => {
             if (char.value === "\n") {
                 const before = line.slice(0, ch);
     			const after = line.slice(ch, line.length);
-                this.crdt.splice(lineIndex, 1, ...[before.push(char), after]);
+                before.push(char);
+                C.crdt.splice(lineIndex, 1, ...[before, after]);
                 return change;
             } else {
-                this.crdt[lineIndex].splice(ch, 0, char);
+                C.crdt[lineIndex].splice(ch, 0, char);
                 return change;
             }
         } else {
@@ -321,12 +330,12 @@ CRDT.prototype.remoteInsert = (char) => {
         }
 };
 
-CRDT.prototype.remoteDelete = (char) => {
-        const [lineIndex, ch, found] = this.findPosition(char);
-        let line = this.getLine(lineIndex);
-        if (found === "found" && equalChar(line[ch], char)) {
+C.remoteDelete = (char) => {
+        const [lineIndex, ch, found] = C.findPosition(char);
+        let line = C.getLine(lineIndex);
+        if (found === "found" && C.equalChar(line[ch], char)) {
             line.splice(ch, 1);
-            const nextLine = this.getLine(lineIndex + 1);
+            const nextLine = C.getLine(lineIndex + 1);
 
             if (line.findIndex(char => char.value === "\n") < 0 && nextLine) {
                 // Newline character was removed, need to join with the next line
@@ -335,7 +344,7 @@ CRDT.prototype.remoteDelete = (char) => {
                     to : {line: lineIndex + 1, ch: 0}, 
                     text : ""
                 };
-                this.crdt.splice(lineIndex, 2, line.concat(nextLine));
+                C.crdt.splice(lineIndex, 2, line.concat(nextLine));
                 return change;
             } else {
                 const change = {
@@ -343,7 +352,7 @@ CRDT.prototype.remoteDelete = (char) => {
                     to : {line: lineIndex, ch: ch + 1}, 
                     text : ""
                 };
-                this.crdt[lineIndex] = line;
+                C.crdt[lineIndex] = line;
                 return change;
             }
         } else {
@@ -351,14 +360,61 @@ CRDT.prototype.remoteDelete = (char) => {
             return null;
         }
 };
-/*
-CRDT.prototype.localInsert = (lamport, site, change) => {
-        const remoteChanges = this.updateCrdtInsert(lamport, site, change);
-        return remoteChanges;
+
+C.updateAndConvertLocalToRemote = (lamport, site, change) => {
+    if (change.from.line > change.to.line ||
+        (change.from.line === change.to.line && change.from.ch > change.to.ch)) {
+        alert("got inverted from/to");
+    }
+
+    switch (change.origin) {
+        case "+delete":
+            const deleteChange = {
+                from : change.from,
+                to : change.to,
+                text : ""
+            };
+            return C.updateCrdtRemove(deleteChange).map(char => ["remove",char]);
+        case "+input":
+        case "paste":
+            // Pure insertions have change.removed = [""]
+            let removeChanges = [];
+            if (!(change.removed.length === 1 && change.removed[0] === "")) {
+                const deletion = {
+                    from : change.from,
+                    to : change.to,
+                    text : ""
+                };
+                removeChanges = C.updateCrdtRemove(deletion).map(char => ["remove",char]);
+            }
+            // All strings expect the last one represent the insertion of a new line
+            const insert = {
+                from : change.from,
+                to :change.to,
+                text : change.text.join("\n")
+            };
+            const insertChanges = C.updateCrdtInsert(lamport, site, insert).map(char => ["add",char]);
+            return removeChanges.concat(insertChanges);
+        default:
+            alert("Unknown change origin " + change.origin);
+    }
 };
 
-    public localDelete(change: LocalChange): Char.t[] {
-        const remoteChanges = updateCrdtRemove(change);
-        return remoteChanges;
+C.updateAndConvertRemoteToLocal = (change) => {
+    const char = change[1];
+    switch (change[0]) {
+        case "add":
+            return C.remoteInsert(char);
+        case "remove":
+            return C.remoteDelete(char);
+        default: alert("unknown remote change");
     }
-*/
+};
+
+
+return C;
+};
+
+if ('undefined' != typeof global)
+    module.exports = CRDT;
+

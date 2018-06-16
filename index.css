@@ -1,7 +1,18 @@
 
 html , body {
-	color: #fff;
+	color:#fff;
 	height:100%;
-	width:100%; 
+	width:100%;
+	font-family:monospace;
 }
-
+body {
+  background: #282A36;
+}
+header {
+	margin: 10px 0px 10px;
+}
+h1 {
+	display : inline;
+	font-size : 26px;
+	margin: 0px 20px;
+}
