@@ -54,10 +54,11 @@ socket.on('recvChange', (remoteChange) => {
 });
 
 editor.on('change', (self, change) => {
-	if (change.origin === "ignore") return;
-	global_lamport = global_lamport + 1;
-    const changes = C.updateAndConvertLocalToRemote(global_lamport, global_site, change);
-    changes.forEach(change => socket.emit('sendChange',{change : change, lamport : global_lamport}));
+	if (change.origin !== "ignore") {
+		global_lamport = global_lamport + 1;
+    	const changes = C.updateAndConvertLocalToRemote(global_lamport, global_site, change);
+    	changes.forEach(change => socket.emit('sendChange',{change : change, lamport : global_lamport}));
+    }
     container.innerHTML = converter.makeHtml(editor.getValue());
 });
 
