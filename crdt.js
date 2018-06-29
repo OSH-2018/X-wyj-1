@@ -188,6 +188,10 @@ C.getChar = (lineIndex, charIndex) => {
 	return C.char(c.position.map(i => {return {digit : i.digit, site : i.site}}), c.lamport, c.value);
 };
 
+C.getCharValue = (lineIndex, charIndex) => {
+    return c.crdt[lineIndex][charIndex].value;
+};
+
 //deep copy
 C.getLine = (lineIndex) => {
     if (!C.crdt[lineIndex]) return [];
@@ -234,7 +238,9 @@ C.getPreChar = (lineIndex, charIndex) => {
 };
 
 C.updateCrdtRemove = (change) => {
-    const lines = C.crdt.slice(change.from.line, change.to.line + 1);
+    let lines = [];
+    for (var lineIndex = change.from.line; lineIndex <= change.to.line; lineIndex++)
+        lines.push(C.getLine(lineIndex));
     const linesAndUpdates = lines.map((line, index) => {
         let startIndex;
         let endIndex;
@@ -261,12 +267,14 @@ C.updateCrdtRemove = (change) => {
     _toRemove.forEach(array => {toRemove = toRemove.concat(array)});
 
     // Only the first and last line should be non-empty, so we just keep those.
+    /*
     if (lines.length === 1) {
 		C.crdt[change.from.line] = updatedLines[0];
     } else {
         const remainingLine = updatedLines[0].concat(updatedLines[updatedLines.length-1]);
         C.crdt.splice(change.from.line, lines.length, remainingLine);
     }
+    */
     return toRemove;
 }
 
@@ -300,7 +308,7 @@ C.updateCrdtInsert = (lamport, site, change) => {
     const currentLine = before.concat(after);
     lines.push(currentLine);
 
-    C.crdt.splice(lineIndex, 1, ...lines);
+    //C.crdt.splice(lineIndex, 1, ...lines);
     return addedChars;
 }
 
@@ -359,7 +367,7 @@ C.remoteDelete = (char) => {
         }
 };
 
-C.updateAndConvertLocalToRemote = (lamport, site, change) => {
+C.convertLocalToRemote = (lamport, site, change) => {
     if (change.from.line > change.to.line ||
         (change.from.line === change.to.line && change.from.ch > change.to.ch)) {
         alert("got inverted from/to");
@@ -377,7 +385,7 @@ C.updateAndConvertLocalToRemote = (lamport, site, change) => {
         case "paste":
             // Pure insertions have change.removed = [""]
             let removeChanges = [];
-            if (!(change.removed.length === 1 && change.removed[0] === "")) {
+            if (change.removed && !(change.removed.length === 1 && change.removed[0] === "")) {
                 const deletion = {
                     from : change.from,
                     to : change.to,
@@ -407,6 +415,64 @@ C.updateAndConvertRemoteToLocal = (change) => {
             return C.remoteDelete(char);
         default: alert("unknown remote change");
     }
+};
+
+C.isNumber = (ch) => {
+    return (ch >= '0' && ch <= '9');
+};
+
+C.findAllAvailSpace = (site) => {
+    let user = 0;
+    let availSpace = {};
+    let availSpaces = [];
+    let i = 0, j = 0, k = 0;
+    while (i < C.crdt.length) {
+        j = 0;
+        while (j < C.crdt[i].length) {
+            if (C.crdt[i][j].value === '\\' && 
+                C.crdt[i][j+1] && C.crdt[i][j+1].value === 'g') {
+                k = j;
+                j = j + 2;
+                let num_site = 0;
+                if (C.crdt[i][j]) {
+                    while (C.crdt[i][j] && C.isNumber(C.crdt[i][j].value)) {
+                        num_site = num_site * 10 + C.crdt[i][j].value - '0';
+                        j = j + 1;
+                    }
+
+                    if (num_site > 0) {
+                        if (user === 0) {
+                            user = num_site;
+                            availSpace.s = C.getChar(i, j - 1);
+                        }
+                        else 
+                            if (user === num_site) {
+                                if (user === site) {
+                                    availSpace.e = C.getChar(i, k);
+                                    availSpaces.push(availSpace);
+                                }
+                                availSpace = {};
+                                user = 0;
+                        }
+                    }
+                }
+            }
+            else {
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    return availSpaces;
+};
+
+C.isAvail = (availSpaces, char) => {
+    for (var index in availSpaces) {
+        if (C.compareChar(availSpaces[index].s, char) === -1 &&
+              C.compareChar(char, availSpaces[index].e) === -1)
+            return 1;
+    }
+    return 0;
 };
 
 
