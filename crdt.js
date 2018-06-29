@@ -439,11 +439,13 @@ C.findAllAvailSpace = (site) => {
                         num_site = num_site * 10 + C.crdt[i][j].value - '0';
                         j = j + 1;
                     }
+                    if (!C.crdt[i][j]) break;
+                    if (C.crdt[i][j].value !== '\\') break;
 
                     if (num_site > 0) {
                         if (user === 0) {
                             user = num_site;
-                            availSpace.s = C.getChar(i, j - 1);
+                            availSpace.s = C.getChar(i, j);
                         }
                         else 
                             if (user === num_site) {
