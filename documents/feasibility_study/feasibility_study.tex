@@ -1,4 +1,4 @@
-\documentclass[11pt]{article}
+\documentclass[11pt]{ctexart}
 
 \usepackage{xeCJK}
 \usepackage{graphicx}
@@ -8,12 +8,7 @@
 \usepackage{float}
 \usepackage{indentfirst}
 
-\setCJKmainfont[BoldFont=SourceHanSerifSC-Bold]{SourceHanSerifSC-Regular}
-\setCJKsansfont[BoldFont=SourceHanSansSC-Bold]{SourceHanSansSC-Regular}
-\setCJKmonofont{STFangsong}
 \setlength{\parindent}{2em}
-
-\renewcommand{\baselinestretch}{1.5}
 
 \usepackage{xcolor}
 \usepackage{listings}
@@ -43,7 +38,7 @@
     language=C
 }
 
-\title{OSH可行性报告\\[2ex]文件多路传输系统}
+\title{OSH可行性报告\\[2ex]实时文本协作系统}
 \author{徐直前 PB16001828\\吴永基 PB16001676\\黄子昂 PB16001840\\金朔苇 PB16001696\\}
 \date{\today}
 \begin{document}
@@ -52,6 +47,12 @@
 \tableofcontents
 
 \section{项目简介}
+本项目旨在实现一个基于CRDT（Conflict-free Replicated Data Type）技术实现的实时文本协作系统。能够实现更加精细的权限控制，
+使得管理员能控制每一个用户具体能够编辑的区域，而不是现在几乎所有的文本协作系统所实现的笼统的对全文只读或者可编辑的权限控制。
+同时也支持Markdown语法，实现Markdown的实时预览。相比于Word这样的可见即可得的富文本格式，
+Markdown这样的基于语法控制排版的方式更受技术人员、产品经理、科技记者、小说作
+者等人群的喜爱。本实时协作系统最终将以网页端的方式实现，具有良好的跨平台性，也便于用户使用。系统将使用JavaScript开发，使用Node.js作为后端，
+使用npm包管理器就可以轻松的在服务器上进行部署，移植成本也相当低。
 \section{项目背景}
 通常在软件开发中使用的多人协作解决方案，就是Git这种版本控制系统了。
 Git这种版本控制系统通常是每个用户各自工作，完成自己的部分代码，
@@ -67,166 +68,16 @@ Git这种版本控制系统通常是每个用户各自工作，完成自己的�
 这显然就出现来致命的问题，每个编辑者看到的结果不一样。显然，需要一个精心设计的机制才能解决这个问题。
 
 我们在调研报告中已经调研过Google Docs，Apple iWork，Microsoft Office Online、石墨文档，
-还有像EtherPad、Firepad这样的开源项目。其中我们并没有发现能同时较好的保证一致性、实现历史版本、的产品。
-并且大多都是富文本编辑器，而现在的很多技术人员和产品经理都大多都偏好Markdown这样的写作方式，
-但几乎没有能支持Markdown编辑的文档协作产品，更没有任何产品能对每个用户进行精细的权限控制，
-而不是笼统的只能对整篇文档设置只读或者可编辑。
+还有像EtherPad、Firepad这样的开源项目。目前我们还没有找到一个理想的方案，实现了
+对Markdown或者Latex等的支持，以及实现除了控制每个人对整个文档的只读和可编辑以外更精细的权限控制。
+此外，以上大部分产品都采用了OT的技术实现。CRDT相比OT有更好的可延伸性，更好的容错性等诸多优点，因为其是
+新诞生的技术，还没有多少产品应用了CRDT技术。在此，我们也尝试使用CRDT技术来构建一个可以支持Markdown实时预览，
+能实现更加精细的权限控制的实时文本协作系统。
 
 
-\section{理论依据}
-\subsection{编辑锁}
-编辑锁是最简单的实现方式，每
-个人在编辑文件的同时，对文件进行上锁,
-其他所有用户都不能编辑此文件，这样的实现最大的好处就是逻辑简单,
-而且完全避免了冲突。然而，这种方式的效率很低，
-类似于计算机网络中对同一链路复用的时候使用了纯ALOHA协议，
-在负载较高的情况下，冲突几率很高，排队时间时间长，应用在多人协作编辑时，
-可能会出现这样的极端情况：某人几乎长时间占用编辑权限，导致其他人一直处于冲突的状态而无法编辑。
-我们可以参考计算机网络中的CSMA协议,可以大大提高复用效率，并且减少冲突。对于大流量端淹没小流量端的问题，
-我们可以借鉴滑动窗口协议，使每个用户都有可以忍受的服务质量。然而，由于延迟和时序等原因，
-如果要恢复由冲突导致失效的指令，单纯的编辑锁是没办法实现的。如果这些失效的指令丢失了，
-就会导致修改状态不稳定，或是呈现的编辑结果与修改结果不符，这也是用户很难接受的。
-
-\subsection{GNU diff-patch}
-相比于编辑锁，该算法解决了冲突带来的糟糕体验，
-并且有许多早期的协作编辑软件都是基于这种方法实现的。假设两台终端合作编辑一份文件，
-每台终端连接至服务器后，获取该文件的一个副本，然后在本地对副本进行编辑，
-每隔一段时间或者等用户停止编辑一段时间后，将编辑后的文件副本上传给服务器，
-服务器对新旧版本进行diff运算，并且智能合并。之后，将更改的patch广播给每个用户来进行同步。
-该算法有一个明显的缺陷：GNU diff通过行匹配，在两个用户同时编辑同一行后，智能合并就失效了，
-出现无法避免的冲突。在负载较高的情况下，上行与下传会占用大量I/O资源，并且智能合并的结果也更加不可预测。
-
-该方法的实时性不够强，但这也成为了一种优势，即对于延迟的要求低，而且通过适当的预测算法，只上传一部分进行diff，缓解带宽压力。
-另外一个优势是，可以方便人工核对，然后进行选择合并。
-
-\subsection{Myer's diff-patch}
-在GNU diff-patch算法中，
-我们提到diff是行为单位进行检测并合并的，
-但仍然无法避免高几率发生的冲突，而且在智能合并的复杂度与随着负载的增加而极大增加，
-结果的不可预测性提高。Myer对此方案进行了改进，将检测的粒度降低为字，使得冲突的几率和合并结果的随机性和波动性减小。
-冲突虽然不可能完全避免，但只会在对同一个字编辑的时候发生，这时可能会丢失字符。
-对于普通文本来说，这是可以忍受的情况。对于包含代码等对正确性要求极高的富文本文件，修复丢失的字符会占用大量的资源。
-
-
-\subsection{Operational Transformation}
-\subsubsection{简介}
-Operational Transformation 则是一种相对较为先进的解决方案，
-能较好的解决同步性问题。这项技术相对来说也是较为复杂，
-已经在学术界和工业界被研究了二十多年了。著名的Apache Wave和Google Docs的核心技术便是Operational Transformation。
-
-Operational Transformation
-最早是在1989年由C. Ellis and S. Gibbs提出的。
-但是过了几年，就有人发现了原始的方案拥有一些正确性的问题，
-也提出了不同的解决方案。随后十几年，无数研究者又对OT进行了不断的扩充和升级。
-
-OT这项技术，顾名思义就是当文档的状态发生变化时，
-就对用户发送的操作请求进行变化，从而保证每个用户文档状态的同步。
-在OT中，用户的所有编辑都会被转变成一个操作（operation）。
-当两个操作被应用到一篇文档时，我们会根据第一个操作对文档的改变，
-计算第二个操作该如何变化，以保证第二个操作的一正常进行，
-保留第一个操作原本对文档的操作意图。
-
-\subsubsection{核心思想}
-我们把这个协作系统中的每个参与者叫作一个站点（site），
-通常一个站点就对应一个用户的工作站。当然，也有一些机器会对应多个站点。我们在这里假设每个站点都可以和其他站点之间相互通信。
-
-这里，我们来定义一下这个协作系统的结构$G=<S, O>$这里$S$是站点的集合，$O$是操作（operators）的集合。
-
-每一个站点都由一个站点进程（site process），
-一个站点对象（site object），以及一个唯一的站点标识符（site identifier）构成。
-其中站点对象就是我们需要尽力维护站点对象的一致性，使得每个用户看到的结果尽可能一样。
-一个站点对象的结构是由应用程序决定的。 操作的集合O也取决于站点对象，比如一个文本编辑系统的站点对象可能就包含一个字符串，
-并且定义操作集合O={O1, O2}。
-\begin{center}
-O1 = insert[X; P]   在位置P插入字符X\\
-O2 = delete[P]	    删除位置P的字符
-\end{center}
-
-例如之前的例子「ABCD」。
-
-比如说现在一个用户想在D之前插入字符X，那么他就需要发送操作O1[X; 3]。
-
-站点进程需要处理三种问题：
-\begin{enumerate}
-    \item 操作的生成：将用户的编辑转换成操作，并且向整个网络中的其他站点广播
-    \item 操作的接受：从其他站点接受操作请求
-    \item 操作的执行：执行一个操作请求
-\end{enumerate}
-
-回到ABCD这个例子中
-\begin{enumerate}
-    \item Alice发送了操作O1[X; 3]插入X，Bob发送了操作O2[1]删除B
-    \item 服务器首先接到了Bob的请求，删除了B，现在文本变为了ACD
-    \item 服务器接受了Alice的操作O1[X; 3]，但是现在正确插入的位置应该变为了2，服务器会自动完成这一操作的变化
-    \item 现在Alice、Bob和服务器都认为文档的状态是ACXD了，这样就保证了一致性。
-\end{enumerate}
-
-在这样一个协作系统中，我们需要一个服务器来保存文档的「真理」。这样即使一个客户端下线了，我们同样可以从服务器上获取文档。
-
-一般来说，我们有如下两种操作：
-\begin{itemize}
-    \item 包含变换（Inclusion Transformation）：用IT(a, b)表示，对操作a进行变换，以将操作b的影响包含在内
-    \item 排除变换（Exclusion Transformation）：用ET(a, b)表示，对操作a进行变换，以将操作b的影响排除在外
-\end{itemize}
-
-现在让我们来看IT变换的一个例子：
-假设我们要对两个插入操作Insert[p1, c1], Insert[p2, c2]
-进行IT变换（插入的均是单个字母，p1,p2 为插入位置,c1, c2为插入字符。
-那么我们的变换函数将是这样实现的：
-
-\begin{lstlisting}[style=CStyle]
-IT_INS_INS (Insert[p2, c2], Insert[p1, c1]) {
-    if ((p2 < p1) || (p1 == p2 && u2 > u1))	return Insert[p2, c2];
-    else return Insert[p2 + 1, c2];
-}
-\end{lstlisting}
-以上代码用user identifier来标示用户操作的优先级。
-
-\begin{figure}[H]
-    \begin{center}
-    \includegraphics[width=0.8\textwidth]{figures/ot_transformation.png}
-    \caption{操作变换}
-    \end{center}
-\end{figure}
-
-相比于以上character-wise的，实现string-wise的操作算法就会复杂多了，因为
-\begin{itemize}
-    \item 字符串的删除会覆盖一个范围
-    \item 并发的字符串删除可能会产生重叠（overlap）
-    \item 之前插入操作可能会被之后的插入和删除操作改变
-\end{itemize}
-OT中最大的一个难题就是实现撤销的操作了。
-在OT中我们要撤销操作O，那么我们就要消除操作O的一切影响，
-同时保留其他所有操作的影响。在一个单用户文本编辑器中，这一点很容易实现，
-因为操作都是线性的。但在多用户协作系统中，这就成为了一个难题，操作变成非线性的了。
-\subsubsection{不同算法比较}
-\paragraph{dOPT算法}
-没有中心服务器，且会遇到dOPT-puzzle的问题，这个算法并不正确。
-\begin{figure}[H]
-    \begin{center}
-    \includegraphics[width=0.67\textwidth]{figures/dOPT.png}
-    \caption{dOPT}
-    \end{center}
-\end{figure}
-\paragraph{adOPTed算法}
-dOPT算法的改进
-\begin{figure}[H]
-    \begin{center}
-    \includegraphics[width=0.67\textwidth]{figures/adOPTed.png}
-    \caption{adOPTed}
-    \end{center}
-\end{figure}
-\paragraph{GOT算法}
-GOT算法很好的实现了一直行，并且支持undo/do/redo。但是它只能支持两种基本字符串操作：插入/删除。
-\begin{figure}[H]
-    \begin{center}
-    \includegraphics[width=0.67\textwidth]{figures/GOT.png}
-    \caption{GOT}
-    \end{center}
-\end{figure}
-\subsection{CRDT}
-\subsubsection{简介}
-CRDT是Convergent and Commutative Replicated Data Type 
+\section{理论依据 - CRDT}
+\subsection{简介}
+CRDT是Conflict-free Replicated Data Type
 的缩写，换言之“无冲突可复制型数据”。
 
 人类目前实际可行的构建超大规模系统的比较好的解决方案就是利用分布式文件系统。但是分布式文件系统正确性很难保证
@@ -269,24 +120,60 @@ CRDT不是一个基于共识的系统，
 其使用一些简单的数学性质来确保事件的连续性。
 CRDT快速将备份整合为和使用序列处理效果相同的通用的状态。
 由于CRDT不需要同步，一个升级会被快速地处理，并不被网络的延迟性所影响。
+一个最简单的CRDT的例子就是一个可复制的计数器，其能保证一致性是因为计数器增和减操作能相互通信（commute）。
 
-\subsubsection{概念}
-\paragraph{原子和对象}
+CRDT相比OT这类现在大多数实时文本协作系统应用的技术相比优势也很明显，其拥有很好的容错能力，以及很好的可伸缩性，同时也不需要像OT这样考虑不同的操作顺序，其具体实现机制也并不繁杂。因此，CRDT应用场景也十分广泛，能应用到延时容忍网络中的计算，广域网中的延时容忍，断连操作，容错的P2P计算，数据聚集……
+
+\subsection{概念}
+\subsubsection{原子和对象}
 一个进程可以存储原子和对象。一个原子是一个基本的不可被改变的数据类型，
 原子是由它的字面意思被识别；如果他们有相同的内容，那么原子可以被认为是相同的。
 原子的类型在这篇文章中被划分为整数，字符串，集合，元组，和他们的不可改变的操作。原子的类型可以被写成更低级的形式比如集合。
 
 一个对象是可改变的，重复的数据类型。
-对象的种类是被大写化的。例如”Set”。
+对象的种类是被大写化的。例如"Set"。
 一个对象拥有一个身份，可能是任意对象的一个内容，
 一个初始状态，并且一个由操作构成的界面。
 两个操作拥有相同的身份但是却定位在不同的进程中，这样的情况被称为另一个的复制品。
 
-\paragraph{操作}
+\subsubsection{操作}
 该环境由未指定的客户端组成，
 这些客户端通过调用其接口中的操作来查询和修改对象状态，
 并针对他们选择的称为源副本的副本进行查询和修改。查询在本地执行，即完全在一个副本上执行。
-更新有两个阶段：第一，客户端在源处调用操作，该操作可能会执行一些初始处理。然后，更新将异步传输到所有副本；这是下游部分。
+更新有两个阶段：第一，客户端在源处调用操作，该操作可能会执行一些初始处理。然后，更新将异步传输到所有副本。
+
+\subsection{文本实时协作中CRDT的实现}
+首先我们来举一个最简单的例子，假设有三个人Alice、Bob、Oscar同时对一个袋子（bag）进行操作。袋子支持增加物品和删除物品两种操作。如果刚开始袋子中只有一个苹果，此时Alice和Bob都想从袋子中拿走一个苹果，
+而Oscar却想往袋子中放一个苹果。这样就会产生问题了。显然，每个人对自己所保存的袋子的“状态”的基础上先执行自己要执行的操作，Alice和Bob此时认为袋子中没有苹果，而Oscar的袋子中有两个苹果。此时Oscar收到了两个Remove操作，移除袋子中的两个苹果，袋子为空。然而Alice和Bob的状态不能确定。因为他们俩可能先收到Remove指令，再收到Add指令，此时袋子中有一个苹果。亦或先收到Add指令，再收到Remove指令，此时袋子中没有苹果。
+为了解决这个问题，我们要个每一个苹果一个独一无二的编号，这样，比如Alice和Bob同时想移除苹果1，而Oscar想加入苹果2，就不会造成问题了，最终三个人都会得到袋子中只有苹果2的状态。
+
+对于文本的协同编辑，我们也采用同样的方法。我们给每一个原子（也就是每一个字符）赋予一个独一无二的位置标识符（PosID），满足一下三条原则
+\begin{enumerate}
+	\item 每一个在缓冲区中的原子都有一个ID
+	\item 任意两个不同的原子都有两个不同的ID
+	\item 一个给定原子的ID在整个文档剩余的生命周期中保持不变
+	\item ID之间有一个全序关系，和原子在缓冲区中的顺序一致
+	\item ID取值空间是密集的，即：$\forall P, F : P < F \Rightarrow \exists N: P < N < F$
+\end{enumerate}
+我们定义一个抽象的原子数据缓冲区的状态T是一个由 (\textit{atom,PosID}) 二元组构成的集合，状态T的内容就是由T中所有原子按照\textit{PosID}排列构成的序列。 
+
+每一个用户都会维持这个CRDT的一个副本，并且进行本地编辑
+\begin{itemize}
+	\item \textit{insert}($\mathit{PosID_{n}}$, newatom)
+	\item \textit{delete}($\mathit{PosID_{n}}$)
+\end{itemize}
+这样，两个指向不同的PosID的操作是相互独立的。因为他们对于CRDT的作用效果是与他们的执行顺序无关的。那么现在只需要考虑并发的指向相同的PosID的两个操作。
+一个插入操作必定发生在一个删除操作之前签，所以他们不可能是并发的。最后，删除操作是幂等的（idempotent），因为删除掉了一个给定PosID的字符再次删除这个PosID的字符是无效的。
+因此，我们这样构建的一个缓冲区就构成了一个简单的CRDT，实现了文本实时协作功能。
+
+但是，在这里还有两个问题需要考虑。
+\begin{itemize}
+	\item 两个客户端在同一时间生成了同样的PosID（当他们并行地在同一个位置插入字符）
+	\item 一个客户端生成了一个已经被使用过的PosID（删除一个字符之后重新插入他们）
+\end{itemize}
+
+第二个问题很好解决，每个客户端自己只要维持一个记录，保证不会生成自己已经使用过的PosID即可。第一个问题同样可以用一个很简单的方法解决，我们只要将每一个PosID变成一个二元组即可，把PosID这个标识数字和产生该ID的客户端编号放在一起即可。这样就保证了两个客户端不会产生同样的PosID。
+
 \section{技术依据}
 \section{创新点}
 
