@@ -175,6 +175,23 @@ CRDT相比OT这类现在大多数实时文本协作系统应用的技术相比�
 第二个问题很好解决，每个客户端自己只要维持一个记录，保证不会生成自己已经使用过的PosID即可。第一个问题同样可以用一个很简单的方法解决，我们只要将每一个PosID变成一个二元组即可，把PosID这个标识数字和产生该ID的客户端编号放在一起即可。这样就保证了两个客户端不会产生同样的PosID。
 
 \section{技术依据}
+\subsection{JavaScript和Node.js}
+\subsubsection{JavaScript}
+JavaScript，是一门通过解释执行,动态类型，面向对象（基于原型，可以用原型链的方式实现，每一个对象都有一个prototype属性，指定该对象的原型）的直译语言。它已经由ECMA（欧洲电脑制造商协会）通过ECMAScript实现语言的标准化。它被世界上的绝大多数网站所使用，也被世界主流浏览器（Chrome、IE、Firefox、Safari、Opera）支持。
+它支持面向对象编程，命令式编程，以及函数式编程。它提供语法来操控文本、数组、日期以及正则表达式等，不支持I/O，比如网络、存储和图形等，但这些都可以由它的宿主环境提供支持。
+
+用JavaScript可以很方便的做到
+\begin{itemize}
+	\item 嵌入动态文本于HTML页面
+	\item 对浏览器事件作出响应
+	\item 读写HTML元素
+	\item 在数据被提交到服务器之前验证数据
+	\item 检测访客的浏览器信息
+	\item 控制cookies，包括创建和修改等
+\end{itemize}
+
+不同于服务器端脚本语言，例如PHP与ASP，JavaScript主要被作为客户端脚本语言在用户的浏览器上运行，不需要服务器的支持。随著引擎如V8和框架如Node.js的发展，及其事件驱动及异步IO等特性，JavaScript逐渐被用来编写伺服器端程式。且在近几年中，Node.js的出世，让JavaScript也具有了一定的服务器功能，且在某些方面比PHP的效果更为显著。
+
 \section{创新点}
 
 \nocite{*}
