@@ -1,12 +1,12 @@
 \documentclass[11pt]{ctexart}
 
-\usepackage{xeCJK}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{cite}
 \usepackage{float}
 \usepackage{indentfirst}
+\usepackage[colorlinks,linkcolor=black]{hyperref}
 
 \setlength{\parindent}{2em}
 
@@ -118,10 +118,13 @@ CRDT相比OT这类现在大多数实时文本协作系统应用的技术相比�
 
 \subsection{CRDT的一些类型}
 CRDT有很多种应用场景不同的实现类型和方法，下面来简述一下G-Counter和PN-Counter两种实现。
-\subsubsection{G-Counter (Grow-only Counter}
+\subsubsection{G-Counter (Grow-only Counter)}
 G-Counter市一中基于状态的CRDT，它为n个节点构成的集群维护了一个计数器，每一个节点被从0到n-1编号，通过\textit{myID()}返回ID。计数器的更新在后台进行，
 并且通过对P中所有元素取最大值完成。
 每个节点都维护在数组P中维护了自己的计数器，实现本地增加。更新函数通过比较函数的结果来单调递增地增加CRDT的内部状态。
+\subsubsection{PN-Counter (Positive-Negative Counter)}
+通常在设计CRDT中的一种思路就是结合多个CRDT来实现一个更加复杂的CRDT。在这种情况中，两个G-Counter CRDT被组合起来用来实现一种支持加法和减法的CRDT。P G-Counter用来计数加法，N G-Counter
+用来计数减法。P计数器的值减去N计数器就是PN计数器的值。
 \subsection{文本实时协作中CRDT的实现}
 首先我们来举一个最简单的例子，假设有三个人Alice、Bob、Oscar同时对一个袋子（bag）进行操作。袋子支持增加物品和删除物品两种操作。如果刚开始袋子中只有一个苹果，此时Alice和Bob都想从袋子中拿走一个苹果，
 而Oscar却想往袋子中放一个苹果。这样就会产生问题了。显然，每个人对自己所保存的袋子的“状态”的基础上先执行自己要执行的操作，Alice和Bob此时认为袋子中没有苹果，而Oscar的袋子中有两个苹果。此时Oscar收到了两个Remove操作，移除袋子中的两个苹果，袋子为空。然而Alice和Bob的状态不能确定。因为他们俩可能先收到Remove指令，再收到Add指令，此时袋子中有一个苹果。亦或先收到Add指令，再收到Remove指令，此时袋子中没有苹果。
@@ -225,10 +228,30 @@ Socket.IO在断连时也会尝试不断自动重连，直到服务器可用为�
         // listen to the event
     });
 \end{minted}
-\subsection{Codemirror}
+\subsection{CodeMirror}
+\href{http://codemirror.net/}{CodeMirror}是一个以JavaScript实现的为浏览器设计的多功能文本编辑器，特别适合编写代码，也支持很多不同的语言模式。其特点主要有：
+\begin{itemize}
+	\item 支持超过100种语言
+	\item 搜索和替换借口
+	\item 支持不同的主题
+	\item 支持自动完成
+	\item 支持根据内容自动调整大小
+	\item 支持分屏浏览
+	\item 支持Vim, Emacs和Sublime Text键位绑定
+	\item 支持代码折叠
+	\item 整合Linter 
+\end{itemize}
 \subsection{Showdown.js}
+\href{http://showdownjs.com/}{Showdown.js}用JavaScript编写的一个将Markdown转换成HTML的库，从而可以实现我们需要的Markdown在线预览功能。
 \section{创新点}
-
+正如我们在项目简介和项目背景中所提及的一样，我们将实现一个轻量级基于网页端的实时文本协作系统。其具备以下特性
+\begin{itemize}
+	\item 采用CRDT实现文本协作
+	\item 支持Markdown语法以及实时预览 
+	\item 基于块级别实现精细的权限控制
+	\item 基于JavaScript和Node.js在网页端的轻量级实现，可在任意一台服务器上轻松部署
+	\item 采用基于免登录的方案，用浏览器打开相应网页可以直接开始编辑，对于一个团队之间在局域网内进行协作十分方便
+\end{itemize}
 \nocite{*}
 \bibliographystyle{plain}
 \bibliography{ref}
