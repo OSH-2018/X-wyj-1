@@ -1,14 +1,14 @@
 var CRDT = () => {
-    var C = {};
+    let C = {};
     C.crdt = [[]];
     C.BASE = 256;
 
 
 C.add = (n1, n2) => {
-	var carry = 0;
-    var diff = new Array();
-    for (var i = Math.max(n1.length, n2.length) - 1; i >= 0; i--) {
-        var sum = (n1[i] || 0) + (n2[i] || 0) + carry;
+	let carry = 0;
+    let diff = new Array();
+    for (let i = Math.max(n1.length, n2.length) - 1; i >= 0; i--) {
+        let sum = (n1[i] || 0) + (n2[i] || 0) + carry;
         carry = Math.floor(sum / C.BASE);
         diff[i] = (sum % C.BASE);
     }
@@ -19,11 +19,11 @@ C.add = (n1, n2) => {
 };
 
 C.subtract = (n1,n2) => {
-	var carry = 0;
-    var diff = new Array();
+	let carry = 0;
+    let diff = new Array();
     for (let i = Math.max(n1.length, n2.length) - 1; i >= 0; i--) {
-        var d1 = (n1[i] || 0) - carry;
-        var d2 = (n2[i] || 0);
+        let d1 = (n1[i] || 0) - carry;
+        let d2 = (n2[i] || 0);
         if (d1 < d2) {
             carry = 1;
             diff[i] = d1 + C.BASE - d2;
@@ -57,10 +57,10 @@ C.toIdentifiers = (num, before, after, site) => {
 };
 
 C.increment = (num, delta) => {
-	var firstNonzero = delta.findIndex(x => x !== 0);
-	var inc = delta.slice(0, firstNonzero).concat([0, 1]);
-	var v1 = C.add(num, inc);
-	var v2 = v1[v1.length - 1] === 0 ? C.add(v1, inc) : v1;
+	let firstNonzero = delta.findIndex(x => x !== 0);
+	let inc = delta.slice(0, firstNonzero).concat([0, 1]);
+	let v1 = C.add(num, inc);
+	let v2 = v1[v1.length - 1] === 0 ? C.add(v1, inc) : v1;
 	return v2;
 };
 
@@ -109,8 +109,8 @@ C.equalChar = (c1, c2) => {
 };
 
 C.comparePosition = (p1, p2) => {
-	for (var i = 0; i < Math.min(p1.length, p2.length); i++) {
-		var comp = C.compareIdentifier(p1[i], p2[i]);
+	for (let i = 0; i < Math.min(p1.length, p2.length); i++) {
+		let comp = C.compareIdentifier(p1[i], p2[i]);
 		if (comp !== 0)
 			return comp;
 	}
@@ -128,13 +128,13 @@ C.compareChar = (c1, c2) => {
 };
 
 C.generatePositionBetween = (p1, p2, site) => {
-	var head1 = p1[0] || C.identifier(0, site);
-	var head2 = p2[0] || C.identifier(C.BASE, site);
+	let head1 = p1[0] || C.identifier(0, site);
+	let head2 = p2[0] || C.identifier(C.BASE, site);
 	if (head1.digit !== head2.digit) {
-		var n1 = C.fromIdentifiers(p1);
-		var n2 = C.fromIdentifiers(p2);
-		var delta = C.subtract(n2, n1);
-		var next = C.increment(n1, delta);
+		let n1 = C.fromIdentifiers(p1);
+		let n2 = C.fromIdentifiers(p2);
+		let delta = C.subtract(n2, n1);
+		let next = C.increment(n1, delta);
 		return C.toIdentifiers(next, p1, p2, site);
 	} else {
 		if (head1.site < head2.site) {
@@ -153,7 +153,7 @@ C.generatePositionBetween = (p1, p2, site) => {
 
 C.binarySearch = (U, V, comparator, notFoundBehavior) => {
 
-    var _binarySearch = (start, end) => {
+    let _binarySearch = (start, end) => {
         if (start >= end) {
             switch (notFoundBehavior) {
                 case "at":
@@ -211,7 +211,7 @@ C.findPosition = (char) => {
 	const line = C.getLine(lineIndex);
 	const charIndex = C.binarySearch(line, char, C.compareChar, "at");
 	if (charIndex < line.length) {
-        var found = C.compareChar(C.crdt[lineIndex][charIndex], char) === 0;
+        let found = C.compareChar(C.crdt[lineIndex][charIndex], char) === 0;
         return [lineIndex, charIndex, found ? "found" : "not_found"];
     } else {
         const isAfterNewline = (charIndex === line.length) && (lineIndex !== C.crdt.length - 1);
@@ -239,7 +239,7 @@ C.getPreChar = (lineIndex, charIndex) => {
 
 C.updateCrdtRemove = (change) => {
     let lines = [];
-    for (var lineIndex = change.from.line; lineIndex <= change.to.line; lineIndex++)
+    for (let lineIndex = change.from.line; lineIndex <= change.to.line; lineIndex++)
         lines.push(C.getLine(lineIndex));
     const linesAndUpdates = lines.map((line, index) => {
         let startIndex;
@@ -254,7 +254,7 @@ C.updateCrdtRemove = (change) => {
         } else {
             endIndex = line.length;
         }
-        var toRemove = line.slice(startIndex, endIndex);
+        let toRemove = line.slice(startIndex, endIndex);
         if (toRemove.length !== endIndex - startIndex) {
             alert("size does not match");
         }
@@ -344,7 +344,7 @@ C.remoteDelete = (char) => {
             line.splice(ch, 1);
             const nextLine = C.getLine(lineIndex + 1);
 
-            if (line.findIndex(char => char.value === "\n") < 0 && nextLine) {
+            if (line.findIndex(char => char.value === "\n") < 0 && C.crdt[lineIndex + 1]) {
                 // Newline character was removed, need to join with the next line
                 const change = {
                     from : {line: lineIndex, ch}, 
@@ -431,6 +431,7 @@ C.findAllAvailSpace = (site) => {
         while (j < C.crdt[i].length) {
             if (C.crdt[i][j].value === '\\' && 
                 C.crdt[i][j+1] && C.crdt[i][j+1].value === 'g') {
+
                 k = j;
                 j = j + 2;
                 let num_site = 0;
@@ -442,7 +443,7 @@ C.findAllAvailSpace = (site) => {
                     if (!C.crdt[i][j]) break;
                     if (C.crdt[i][j].value !== '\\') break;
 
-                    if (num_site > 0) {
+                    if (num_site > 0) {     //private space
                         if (user === 0) {
                             user = num_site;
                             availSpace.s = C.getChar(i, j);
@@ -457,6 +458,18 @@ C.findAllAvailSpace = (site) => {
                                 user = 0;
                         }
                     }
+                    else if (num_site === 0 && k + 2 === j) {   //common space
+                        if (user === 0) {
+                            user = -1;
+                            availSpace.s = C.getChar(i, j);
+                        }
+                        else if (user === -1) {
+                            availSpace.e = C.getChar(i, k);
+                            availSpaces.push(availSpace);
+                            availSpace = {};
+                            user = 0;
+                        }
+                    }
                 }
             }
             else {
@@ -469,7 +482,7 @@ C.findAllAvailSpace = (site) => {
 };
 
 C.isAvail = (availSpaces, char) => {
-    for (var index in availSpaces) {
+    for (let index in availSpaces) {
         if (C.compareChar(availSpaces[index].s, char) === -1 &&
               C.compareChar(char, availSpaces[index].e) === -1)
             return 1;
@@ -482,7 +495,6 @@ return C;
 };
 
 if ('undefined' != typeof global) {
-    var alert = ()=>{};
     module.exports = CRDT;
 }
 

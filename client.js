@@ -66,7 +66,6 @@ socket.on('recvChange', (remoteChange) => {
 
 editor.on('beforeChange', (self, change) => {
 	if (change.origin !== "ignore") {
-
         change.cancel();
 
 		let changes = [];
@@ -84,9 +83,9 @@ editor.on('beforeChange', (self, change) => {
     	if (changes.length > 0) {
     		global_lamport = global_lamport + 1;
 
-    		changes.forEach(_change => {
-    			socket.emit('sendChange',{change : _change, lamport : global_lamport, origin : global_role});
-    			const localChange = C.updateAndConvertRemoteToLocal(_change);
+    		changes.forEach(_ch => {
+    			socket.emit('sendChange',{change : _ch, lamport : global_lamport, origin : global_role});
+                const localChange = C.updateAndConvertRemoteToLocal(_ch);
 				if (localChange) {
             		editor.getDoc().replaceRange(localChange.text,
                 		localChange.from, localChange.to, "ignore");
