@@ -10,33 +10,7 @@
 
 \setlength{\parindent}{2em}
 
-\usepackage{xcolor}
-\usepackage{listings}
-
-\definecolor{mGreen}{rgb}{0,0.6,0}
-\definecolor{mGray}{rgb}{0.5,0.5,0.5}
-\definecolor{mPurple}{rgb}{0.58,0,0.82}
-\definecolor{backgroundColour}{rgb}{0.95,0.95,0.92}
-
-\lstdefinestyle{CStyle}{
-    backgroundcolor=\color{backgroundColour},   
-    commentstyle=\color{mGreen},
-    keywordstyle=\color{magenta},
-    numberstyle=\tiny\color{mGray},
-    stringstyle=\color{mPurple},
-    basicstyle=\footnotesize,
-    breakatwhitespace=false,         
-    breaklines=true,                 
-    captionpos=b,                    
-    keepspaces=true,                 
-    numbers=left,                    
-    numbersep=5pt,                  
-    showspaces=false,                
-    showstringspaces=false,
-    showtabs=false,                  
-    tabsize=2,
-    language=C
-}
+\usepackage{minted}
 
 \title{OSH可行性报告\\[2ex]实时文本协作系统}
 \author{徐直前 PB16001828\\吴永基 PB16001676\\黄子昂 PB16001840\\金朔苇 PB16001696\\}
@@ -142,6 +116,12 @@ CRDT相比OT这类现在大多数实时文本协作系统应用的技术相比�
 并针对他们选择的称为源副本的副本进行查询和修改。查询在本地执行，即完全在一个副本上执行。
 更新有两个阶段：第一，客户端在源处调用操作，该操作可能会执行一些初始处理。然后，更新将异步传输到所有副本。
 
+\subsection{CRDT的一些类型}
+CRDT有很多种应用场景不同的实现类型和方法，下面来简述一下G-Counter和PN-Counter两种实现。
+\subsubsection{G-Counter (Grow-only Counter}
+G-Counter市一中基于状态的CRDT，它为n个节点构成的集群维护了一个计数器，每一个节点被从0到n-1编号，通过\textit{myID()}返回ID。计数器的更新在后台进行，
+并且通过对P中所有元素取最大值完成。
+每个节点都维护在数组P中维护了自己的计数器，实现本地增加。更新函数通过比较函数的结果来单调递增地增加CRDT的内部状态。
 \subsection{文本实时协作中CRDT的实现}
 首先我们来举一个最简单的例子，假设有三个人Alice、Bob、Oscar同时对一个袋子（bag）进行操作。袋子支持增加物品和删除物品两种操作。如果刚开始袋子中只有一个苹果，此时Alice和Bob都想从袋子中拿走一个苹果，
 而Oscar却想往袋子中放一个苹果。这样就会产生问题了。显然，每个人对自己所保存的袋子的“状态”的基础上先执行自己要执行的操作，Alice和Bob此时认为袋子中没有苹果，而Oscar的袋子中有两个苹果。此时Oscar收到了两个Remove操作，移除袋子中的两个苹果，袋子为空。然而Alice和Bob的状态不能确定。因为他们俩可能先收到Remove指令，再收到Add指令，此时袋子中有一个苹果。亦或先收到Add指令，再收到Remove指令，此时袋子中没有苹果。
@@ -191,7 +171,62 @@ JavaScript，是一门通过解释执行,动态类型，面向对象（基于原
 \end{itemize}
 
 不同于服务器端脚本语言，例如PHP与ASP，JavaScript主要被作为客户端脚本语言在用户的浏览器上运行，不需要服务器的支持。随著引擎如V8和框架如Node.js的发展，及其事件驱动及异步IO等特性，JavaScript逐渐被用来编写伺服器端程式。且在近几年中，Node.js的出世，让JavaScript也具有了一定的服务器功能，且在某些方面比PHP的效果更为显著。
+\subsubsection{Node.js}
+Node.js是一个能够在服务器端运行JavaScript的开放原始码、跨平台JavaScript执行环境。Node.js由Node.js基金会持有和维护，并与Linux基金会 有合作关系。Node.js采用Google开发的V8执行程式码，
+使用事件驱动、非阻塞和非同步输入输出模型等技术来提高效能，可优化应用程式的传输量和规模。这些技术通常用于资料密集的实时应用程式。
 
+Node.js大部分基本模组都用JavaScript语言编写。在Node.js出现之前，JavaScript通常作为用户端程式设计语言使用，以JavaScript写出的程式常在用户的浏览器上执行。Node.js的出现使
+JavaScript也能用于服务器端编程。Node.js 含有一系列内置模组，使得程式可以脱离Apache HTTP Server或IIS，作为独立服务器执行。
+
+Node.js主要的作用就是相当于Django和Flask这样的Python后端，使得JavaScript可以脱离浏览器直接在服务器运行，让JavaScript可以直接编写服务器的后端，用JavaScript这一门语言就可以打通前后端。
+Node.js也提供了报管理器npm
+\begin{itemize}
+	\item 允许用户从NPM服务器下载别人编写的第三方包到本地使用
+	\item 允许用户从NPM服务器下载并安装别人编写的命令行程序到本地使用
+	\item 允许用户将自己编写的包或命令行程序上传到NPM服务器供别人使用
+\end{itemize}
+用npm可以很方便的实现环境的配置，可以轻松在一台服务器上部署我们开发的应用
+\begin{minted}{shell}
+npm install
+node app.js
+\end{minted}
+\subsection{Socket.IO}
+Socket.I 是一个面向实时Web应用的JavaScript库。它使得服务器和客户端之间实时双向的通信成为可能。
+它有两个部分：在浏览器中运行的客户端库，
+和一个面向Node.js的服务端库。两者有着几乎一样的API。
+像Node.js一样，它也是事件驱动的。
+
+Socket.IO 主要使用WebSocket协议。但是如果需要的话，
+Socket.io可以回退到几种其它方法，例如Adobe Flash Sockets，JSONP拉取，或是传统的AJAX拉取，
+并且在同时提供完全相同的接口。尽管它可以被用作WebSocket的包装库，它还是提供了许多其它功能，比如广播至多个套接字，存储与不同客户有关的数据，和异步IO操作。
+
+Socket.IO 会自动选择合适双向通信协议，仅仅需要程序员对套接字的概念有所了解。
+
+Socket.io最大的特点就是封装WebSocket等协议实现了TCP客户端和服务器端全双工通信。其包含两个部分
+\begin{itemize}
+	\item 一个Node.js服务器端
+	\item 一个JavaScript客户端库
+\end{itemize}
+其具有极强的可靠性，即使在代理和负载平衡器以及防火墙和杀毒软件存在的情况下，仍然能提供稳定的连接。
+Socket.IO在断连时也会尝试不断自动重连，直到服务器可用为止。
+同时Socket.IO也支持二进制序列化数据，任何序列化数据都可以发送，例如浏览器中的ArrayBuffer和Blob
+同时Socket.IO也提供了简单易于使用，用几条简单的命令就能实现事件的发送和事件的监听
+\begin{minted}[linenos,
+               numbersep=5pt,
+               gobble=2,
+               frame=lines,
+               framesep=2mm]{javascript}
+    io.on('connection', function(socket){
+        socket.emit('request', /* */);
+        // emit an event to the socket
+        io.emit('broadcast', /* */);
+        // emit an event to all connected sockets
+        socket.on('reply', function(){ /* */ }); 
+        // listen to the event
+    });
+\end{minted}
+\subsection{Codemirror}
+\subsection{Showdown.js}
 \section{创新点}
 
 \nocite{*}
