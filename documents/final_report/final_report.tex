@@ -129,6 +129,32 @@ CRDT则在每次更新时不广播整个副本的状态，而仅仅广播更新�
 \end{itemize}
 
 第二个问题很好解决，每个客户端自己只要维持一个记录，保证不会生成自己已经使用过的PosID即可。第一个问题同样可以用一个很简单的方法解决，我们只要将每一个PosID变成一个二元组即可，把PosID这个标识数字和产生该ID的客户端编号放在一起即可。这样就保证了两个客户端不会产生同样的PosID。
+\subsection{Socket.IO}
+Socket.IO是一个面向实时Web应用的JavaScript库，封装了WebSocket等协议实现了TCP客户端和服务器端全双工通信。
+Socket.IO提供了一个相当高级的接口，其使用起来也极为简单。
+在客户端，只需要在HTML文件中引入Socket.IO脚本即可，只需要一行代码
+\begin{minted}{html}
+    <script src="/socket.io/socket.io.js"></script>
+\end{minted}
+
+服务器端所需要的操作也很简单
+\begin{minted}{javascript}
+    var io = require("socket.io").listen(server);
+\end{minted}
+就可以将socket.io绑定到服务器上，任何连接到该服务器上的客户端都具备了实时通信功能。
+
+然后使用
+\begin{minted}{javascript}
+    io.on("connection", function (socket) {...}
+\end{minted}
+就可以监听所有客户端，返回新的连接对象（socket即为连接对象）。
+
+Socket.IO是事件驱动的，其核心操作也就是广播一个事件和监听事件并相应，
+主要通过\textsf{socket.emit(eventName[, ...args][, ack])}和\textsf{socket.on(eventName, callback)}
+两个函数来实现
+\textsf{emit}函数广播一个事件，第一个参数为事件的名字，之后可选为传递的参数，\textsf{ack}为可选参数，服务器应答时会调用该函数。
+\textsf{on}函数用来监听一个事件，相当于系统中的一个signal handler，这个函数为指定的事件绑定一个handler，第一个参数为事件的名字，
+第二个参数为handler。
 \nocite{*}
 \bibliographystyle{plain}
 \bibliography{ref}
