@@ -234,7 +234,8 @@ node app.js
 对于整个position identifier的比较，采用类似字符串比较的方式，逐个identifier比较直到第一个不同的位置。如果公共部分相同，那么就看两个position identifier长度的不同。
 \begin{minted}{javascript}
     C.comparePosition = (p1, p2) => {
-        for (let i = 0; i < Math.min(p1.length, p2.length); i++) {
+        for (let i = 0; i < Math.min(p1.length, p2.length); i++)
+        {
             let comp = C.compareIdentifier(p1[i], p2[i]);
             if (comp !== 0)
                 return comp;
@@ -291,6 +292,113 @@ node app.js
     C.findAllAvailSpace = (site)
     C.isAvail = (availSpaces, char)
 \end{minted}
+
+接下来将重点介绍比较重要的几个函数
+ 
+\subsubsection{\textsf{generatePositionBetween}}
+\begin{minted}{javascript}
+    C.generatePositionBetween = (p1, p2, site)
+\end{minted}
+
+这一函数可以算是CRDT中最关键的一个函数，它用递归算法来给给定客户端\textsf{site}生成一个介于\textsf{p1}和
+\textsf{p2}之间的position identifier。其主要过程可以分为三种情况
+\paragraph{情形一 —— p1和p2中第一个identifier的digit相同}
+此时可以做到生成一个新的position identifier，position identifier的大小介于p1和p2之间，
+而与p1和p2第一个identifier对应的site无关。只需要将p1的第一个identifier的digit增加一个
+微小的量即可。为此，我们先扔掉p1和p2的每个identifier中的site，然后将其转换成十进制数字表示
+\begin{minted}{javascript}
+    let n1 = C.fromIdentifiers(p1);
+    let n2 = C.fromIdentifiers(p2);
+\end{minted}
+然后进行加减法，最后转换回数组形式的position identifier
+\begin{minted}{javascript}
+    let delta = C.subtract(n2, n1);
+    let next = C.increment(n1, delta);
+    return C.toIdentifiers(next, p1, p2, site);
+\end{minted}
+
+\paragraph{情形二 —— p1和p2第一个identifier的digit相同，但site不相同}
+假设p1第一个identifier的site是x，p2是y。并且假设x小于y。那么我们只要让新生成的position identifier的
+第一个identifier的digit和p1以及p2第一个identifier相同，而site=x，那么新生成的position identifier就一定小于p2。递归调用
+\begin{minted}{javascript}
+    return 
+    [head1].concat(
+    C.generatePositionBetween(rest(p1), [], site)
+    );
+\end{minted}
+
+注意我们将p2替换成了[]，因为新的position identifier的后半截只要比p1的后半截大即可，而没有小于的要求。
+\paragraph{情形三 —— p1和p2第一个identifier的digit和site都相同}
+递归调用
+\begin{minted}{javascript}
+    return 
+    [head1].concat(
+    C.generatePositionBetween(rest(p1), rest(p2), site)
+    );
+\end{minted}
+
+\subsubsection{\textsf{updateCrdtRemove}}
+\begin{minted}{javascript}
+    C.updateCrdtRemove = (change)
+\end{minted}
+
+在看本函数之前，先介绍一下\textsf{change}这个对象是什么。我们前端的实现采用了CodeMirror这一网页文本编辑器。
+CodeMirror也是采用事件响应的。当编辑器的内容被修改时，编辑器就会立刻发出一个\textsf{"change" (instance: CodeMirror, changeObj: object)}的事件，\textsf{changeObj}
+描述了文本的变化，其是一个\textsf{\{from, to, text, removed, origin\}}这样的对象，from和to是一个二元组对象，包含了\textsf{\{ch, line\}}，是一个二维坐标，
+通过一个字符所在的行和相对于这行的位置指明了一个字符。from和to分别代表修改的起始位置和截止位置。text为修改后的文本，removed为修改前的文本，这个文本已经被text给替换掉了
+origin参数决定了选择历史事件可不可以被合并到之前的操作。
+
+本函数（\textsf{updateCrdtRemove}）函数实现的是对\textbf{本地}CRDT副本实现删除操作，函数仅需要一个参数change。
+首先函数会根据传递进来的change参数来确定需要删除的行有哪些。
+然后针对每行确定删除的起始位置和截止位置。对于第一行来说，删除的开始位置在change中指定，然后一直删除到该行末尾。
+中间的所有行都是从头删到尾，然后最后一行从头删除到change中给定的位置。
+函数执行实际的删除操作，同时将删除了的内容返回。
+\subsubsection{\textsf{updateCrdtInsert}}
+\begin{minted}{javascript}
+    C.updateCrdtInsert = (lamport, site, change)
+\end{minted}
+
+这个函数用于执行\textbf{本地}CRDT副本的字符插入。每次插入操作会在两个相邻的字符中间插入一串字符。
+首先先获得需要插入的行，获取插入位置前的字符，插入位置之后的字符。针对每一个要插入的字符生成一个新的position identifier（调用
+\textsf{generatePositionBetween}函数），然后用这个position identifier生成一个新的我们定义的char类型的对象，将这个char加入到
+在插入位置之前的字符数组before。如果遇到了换行符，那么就用before中的字符生成一个新的行，将新行加入到行数组lines中，同时清空before中的内容。
+最后再将before和插入位置之后的字符构成的数组after相连接，形成最后的一行。函数返回插入的字符。
+
+\subsubsection{\textsf{remoteInsert}}
+\begin{minted}{javascript}
+    C.remoteInsert = (char)
+\end{minted}
+
+该函数是用来合并远程的插入操作，这个函数的参数是一个我们封装的char类型，我们只需要查找到对应的位置，然后发出一个相应的change对象给
+CodeMirror文本编辑器。如果插入的这个字符是换行符，那么需要做一个特别的处理，拆分出换行符之前和之后的字符，形成两个新的行。
+\subsubsection{\textsf{remoteDelete}}
+\begin{minted}{javascript}
+    C.remoteDelete = (char)
+\end{minted}
+
+该函数用来合并远程删除，其和处理远程插入一样，只要一个char类型作为参数。找到对应的位置并且发出合适的change对象。
+如果遇到了换行符，那么需要把当前行和下一行合并。这个操作也并不困难，只要构造一个这样的change对象即可
+\begin{minted}{javascript}
+    from : {line: lineIndex, ch}, 
+    to : {line: lineIndex + 1, ch: 0}, 
+    text : ""
+\end{minted}
+
+\subsubsection{\textsf{findAllAvailSpace}}
+\begin{minted}{javascript}
+    C.findAllAvailSpace = (site)
+\end{minted}
+
+这个函数是权限控制功能的主要构成部分。我们CRDT的整个文档信息以char数组的形式保存在\textsf{C.crdt}中，我们可以以二维数组
+按行和对应行的位置来索引字符。该函数用来寻找给定客户端（通过客户端标识符参数\textsf{site}传递）能编辑的文档范围。首先，
+逐行逐字符搜寻，直到找到匹配的权限控制标识符\textsf{\textbackslash g\{i\}\textbackslash}或\textsf{\textbackslash g\textbackslash}
+（公共编辑区域）。针对第一种情况，提取guest的编号保存在\textsf{num\_site}变量中。此后通过相应的标识符来判断当前的权限控制符是
+标志区域的开始还是结尾。如果遇到了结尾标识符，那我们就确定了一个对应用户的可以编辑区域。如果这个用户和通过参数传递过来的想要查询可行域的
+用户相同，那么就把这个区域加入到可行域的集合中去，否则不理会。我们的算法设计也使得遇到了第一个区域开始标识符后，会找到与之
+相匹配的第一个区域结尾标识符，而不理会这个区域中间的其他任何标识符，也因此保证了只有admin能够实现权限的控制。
+
+\subsection{服务器设计}
+
 \clearpage
 
 \nocite{*}
