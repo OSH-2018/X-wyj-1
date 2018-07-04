@@ -129,6 +129,24 @@ CRDT则在每次更新时不广播整个副本的状态，而仅仅广播更新�
 \end{itemize}
 
 第二个问题很好解决，每个客户端自己只要维持一个记录，保证不会生成自己已经使用过的PosID即可。第一个问题同样可以用一个很简单的方法解决，我们只要将每一个PosID变成一个二元组即可，把PosID这个标识数字和产生该ID的客户端编号放在一起即可。这样就保证了两个客户端不会产生同样的PosID。
+
+\subsection{Express}
+Express 是一个基于 Node.js 平台的极简、灵活的 web 应用开发框架，它提供一系列强大的特性，帮助你创建各种 Web 和移动设备应用。
+。提供了丰富的 HTTP 快捷方法和任意排列组合的 Connect 中间件，让创建健壮、友好的 API 变得既快速又简单。
+
+\begin{minted}{javascript}
+    var express = require('express')
+    var app = express()
+    
+    app.get('/', function (req, res) {
+      res.send('Hello World')
+    })
+    
+    app.listen(3000)
+\end{minted}
+
+这个例子实现了一个最简单的后端应用，监听并响应所有3000端口请求，对所有根目录的访问请求返回“Hello World”。
+
 \subsection{Socket.IO}
 Socket.IO是一个面向实时Web应用的JavaScript库，封装了WebSocket等协议实现了TCP客户端和服务器端全双工通信。
 Socket.IO提供了一个相当高级的接口，其使用起来也极为简单。
@@ -397,7 +415,73 @@ CodeMirror文本编辑器。如果插入的这个字符是换行符，那么需�
 用户相同，那么就把这个区域加入到可行域的集合中去，否则不理会。我们的算法设计也使得遇到了第一个区域开始标识符后，会找到与之
 相匹配的第一个区域结尾标识符，而不理会这个区域中间的其他任何标识符，也因此保证了只有admin能够实现权限的控制。
 
-\subsection{服务器设计}
+\subsection{服务器端设计}
+服务器端采用Socket.IO监听并建立连接，并绑定三个事件。
+\begin{itemize}
+    \item \textsf{join}：用来和客户端建立首次连接，更新用户信息，确定第一个到来的用户为管理员，增加活跃连接计数器计数，向用户发送当前文档状态。
+    \item \textsf{sendChange}：用以转发文档变更。
+    \item \textsf{disconnect}：用户下线时更新用户信息，实现管理员权限的转移。如果当前活跃连接计数器计数为0，重置用户信息。
+\end{itemize}
+
+服务器端默认监听4004端口。
+\begin{minted}{javascript}
+    server.listen(4004, function () {
+        console.log("listening on port:4004");
+    });
+\end{minted}
+
+\subsection{客户端设计}
+客户端使用CodeMirror作为文本编辑器，使用Showdown实现Markdown实时预览。
+\paragraph{Showdown}
+用以将JavaScript转换成HTML元素以实现实时预览。Google Cloud Platform，Ghost，Stack Exchange都在使用Showdown。其使用
+也极为简单
+\begin{minted}{javascript}
+    var converter = new showdown.Converter(),
+    text      = '# hello, markdown!',
+    html      = converter.makeHtml(text);
+\end{minted}
+
+\paragraph{CodeMirror}
+CodeMirror是一个用JavaScript实现的用于嵌入网页的文本编辑器，其功能十分强大，主要用于代码编辑。
+支持多种语言模式，还支持扩展插件，可以实现自动补全、代码折叠、Vim键位绑定等。
+其用法也很简单
+\begin{minted}{javascript}
+    var editor = CodeMirror.fromTextArea(myTextarea, {
+        lineNumbers: true
+      });
+\end{minted}
+
+Socket.IO绑定监听以下事件
+\begin{itemize}
+    \item \textsf{accept}：建立连接，分配客户端标识符
+    \item \textsf{users}：实时更新，在页面上方显示当前用户信息
+    \item \textsf{init}：初始化文档，并进行Markdown初次渲染
+    \item \textsf{recvChange}：接收到远程修改，进行合并，并且重新渲染Markdown
+\end{itemize}
+
+CodeMirror编辑器监听一个事件\textsf{beforeChange}，在发送修改前检查用户是否拥有足够的权限。
+
+\section{不足与未来可改进点}
+我们基本实现了中期报告时预定的目标，实现精细的权限管理和对Markdown的支持。但是由于时间原因，目前的成果仅是一个技术上可行的论证，
+如果要实现完善的用户体验，还有很多细节需要改进。以及在面对大量用户编辑同一篇大型文档时，针对CRDT还可以做一定的优化
+\subsection{对CRDT的优化}
+我们使用了基于状态的CRDT，需要对文档的每个字符都维护一个position identifier。所有的position identifier和对应的字符的具体值
+（以及加上Lamport时间戳）的序列构成了整篇文档。然而，在面对大量用户编辑大型文档时，字符的position identifier可能会变得很长，
+例如一个字符的position identifier可能会由几百个identifier组成，这样会对服务器和客户端内存带来相当大的负担。但是，在CRDT中，我们维护的
+position identifier具体是什么是无关紧要的，只需要维护每个字符的对应的position identifier的大小关系即可。只需要保证每个字符对应的position identifier的
+大小关系不变，那么我们构建出来的文档也是相同。因此，可以设计一种方案，当所有用户都不在线的时候，对文档的position identifier进行压缩，从而降低
+服务器和客户端内存的消耗。
+
+\subsection{其他可改进点}
+\begin{itemize}
+    \item 提高系统的鲁棒性，对脚本注入攻击进行防御
+    \item 实现用户管理系统，使每个用户根据自己的账号和密码登陆
+    \item 支持最后编辑的Markdown文件以及渲染出的PDF、Word、HTML等文件的导出
+    \item 优化前端的设计，适配手机等移动设备（目前网页没有对小屏幕进行优化）
+    \item 使管理员可以指定某个块由多个特定的用户编辑
+    \item 在Markdown实时预览中不显示权限区域控制字符
+    \item ……
+\end{itemize}
 
 \clearpage
 
