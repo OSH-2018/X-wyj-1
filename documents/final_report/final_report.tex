@@ -155,6 +155,144 @@ Socket.IO是事件驱动的，其核心操作也就是广播一个事件和监�
 \textsf{emit}函数广播一个事件，第一个参数为事件的名字，之后可选为传递的参数，\textsf{ack}为可选参数，服务器应答时会调用该函数。
 \textsf{on}函数用来监听一个事件，相当于系统中的一个signal handler，这个函数为指定的事件绑定一个handler，第一个参数为事件的名字，
 第二个参数为handler。
+
+\section{详细设计}
+\subsection{主体架构}
+\begin{figure}[ht]
+    \begin{center}
+    \includegraphics[width=\textwidth]{figures/arch_1.pdf}
+    \caption{Client-server model}
+    \end{center}
+\end{figure}
+\begin{figure}[ht]
+    \begin{center}
+    \includegraphics[width=\textwidth]{figures/arch_2.pdf}
+    \caption{权限控制设计}
+    \end{center}
+\end{figure}
+图3和图4分别说明了本项目的客户端-服务器模型的基本架构以及权限控制的具体机制。
+
+我们采用了Node.js作为后端部署在服务器上运行，借助npm包管理器，服务器程序可以轻松部署在任何一台服务器上。\textsf{package.json}中给出了
+相应的包依赖关系，使用如下两条命令即可完成服务器端的部署：
+\begin{minted}{shell}
+npm install
+node app.js
+\end{minted}
+
+默认监听4004端口，可以在\textsf{app.js}中更改。
+
+服务器在我们的设计中仅负责转发和确认用户的ID信息，并且保留一个副本给新加入的编辑者提供初始状态。本身基于CRDT的实时协作架构是可以用完全去中心化的点对点网络实现，
+但使用客户端-服务器的模型可以简化我们的工作，同时也便于实施权限控制。权限的检查我们采用在客户端本地进行。当客户端检查确认自己有权限编辑某一段时，才会发出修改请求。
+由于本项目的定位为提供一个用于技术团队在同一局域网下的文本实时协作，我们不考虑恶意攻击者的情况。恶意攻击者可以通过修改客户端跳过权限检查来实现作弊。但将权限的判断移植到
+服务器端也是可行的，而且也并不困难。
+
+\subsubsection{权限管理的具体机制}
+\begin{itemize}
+    \item 用户分为admin与guest，admin是唯一的，其余为guest；
+    \item 第一个登陆的人自动设为admin，一旦admin退出（离线），admin按顺序继承给下一个guest
+    \item admin拥有完全编辑权限，并可划分区域，区域格式为\textsf{\textbackslash g\{i\}\textbackslash \ \textbackslash g\{i\}\textbackslash}，i代表guest\{i\}，即guest\{i\}只能在该区域中间（不包括区域标识符）编辑
+    \item 每个guest在自己的编辑区域中再插入\textsf{\textbackslash g\{i\}\textbackslash \ \textbackslash g\{i\}\textbackslash}企图划分出一个层次性的编辑区域是无效的，也无法在命令区域中插入一个\textsf{\textbackslash g\{i\}\textbackslash}表示编辑区域的开始，而admin或其他人
+    s在该guest的编辑区之外插入另一个\textsf{\textbackslash g\{i\}\textbackslash}表示编辑区域的结尾而划分编辑区域。只有admin能设置权限；
+    \item \textsf{\textbackslash g\textbackslash \  \textbackslash g\textbackslash}表示公共编辑区域，任何人都可以在这一个区域中进行编辑。
+\end{itemize}
+
+\subsection{基于状态的CRDT的设计}
+在本项目中，正如背景知识一节所介绍的一样，我们编写了一个基于状态的CRDT以实现各客户端副本之间的同步。在这一节里我们将介绍所使用的CRDT的具体设计。
+\subsubsection{数据结构}
+\paragraph{\textsf{identifier}}
+文档中每一个字符所对应的位置标识符（position identifier）就是由一系列identifier类型构成的，每一个identifier是由一个数字标识digit（我们取256进制）和一个客户端ID的标识符site构成的二元组
+\begin{minted}{javascript}
+    C.identifier = (digit, site) => {
+        return {
+            digit : digit || 0,
+            site : site || 0
+        };
+    };
+\end{minted}
+
+由这样一些列二元组组成的有序多元组就是一个字符的position identifier。对于不同的position identifier我们可以定义一个大小关系
+
+对于每个identifier的比较，先看第一个元素，也就是digit，如果相等再比较第二个元素（客户端标识符）
+\begin{minted}{javascript}
+    C.compareIdentifier = (i1, i2) => {
+        if (i1.digit < i2.digit) {
+            return -1;
+        } else if (i1.digit > i2.digit) {
+            return 1;
+        } else {
+            if (i1.site < i2.site) {
+                return -1;
+            } else if (i1.site > i2.site) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    };
+\end{minted}
+
+对于整个position identifier的比较，采用类似字符串比较的方式，逐个identifier比较直到第一个不同的位置。如果公共部分相同，那么就看两个position identifier长度的不同。
+\begin{minted}{javascript}
+    C.comparePosition = (p1, p2) => {
+        for (let i = 0; i < Math.min(p1.length, p2.length); i++) {
+            let comp = C.compareIdentifier(p1[i], p2[i]);
+            if (comp !== 0)
+                return comp;
+        }
+        if (p1.length < p2.length) {
+            return -1;
+        } else if (p1.length > p2.length) {
+            return 1;
+        } else {
+            return 0;
+        }
+    };
+\end{minted}
+
+\paragraph{\textsf{char}} 在CRDT中，我们的字符类型就是对文档中的普通字符和position identifier放在一起做了个封装，每个char由三个元素组成，一个position identifier（也就是identifier构成的数组），一个Lamport时钟（Lamport
+时钟是一种逻辑时钟而非物理时钟，其主要用于在分布式系统中确定事件发生的顺序，其并不用于CRDT中的比较），以及字符的值。
+\begin{minted}{javascript}
+    C.char = (identifiers, lamport, value) => {
+        return {
+            position : identifiers || [],
+            lamport : lamport || 0,
+            value : value || ''
+        };
+    };
+\end{minted}
+
+\subsubsection{API}
+我们设计的CRDT提供了以下API函数
+\begin{minted}{javascript}
+    C.add = (n1, n2)
+    C.subtract = (n1,n2)
+    C.fromIdentifiers = (identifiers)
+    C.toIdentifiers = (num, before, after, site)
+    C.increment = (num, delta)
+    C.compareIdentifier = (i1, i2)
+    C.equalChar = (c1, c2)
+    C.comparePosition = (p1, p2)
+    C.compareChar = (c1, c2)
+    C.generatePositionBetween = (p1, p2, site)
+    C.binarySearch = (U, V, comparator, notFoundBehavior)
+    C.getChar = (lineIndex, charIndex)
+    C.getCharValue = (lineIndex, charIndex)
+    C.getLine = (lineIndex)
+    C.compareCharWithLine = (char, line)
+    C.findPosition = (char)
+    C.getPreChar = (lineIndex, charIndex)
+    C.updateCrdtRemove = (change)
+    C.updateCrdtInsert = (lamport, site, change)
+    C.remoteInsert = (char)
+    C.remoteDelete = (char)
+    C.convertLocalToRemote = (lamport, site, change)
+    C.updateAndConvertRemoteToLocal = (change)
+    C.isNumber = (ch)
+    C.findAllAvailSpace = (site)
+    C.isAvail = (availSpaces, char)
+\end{minted}
+\clearpage
+
 \nocite{*}
 \bibliographystyle{plain}
 \bibliography{ref}
